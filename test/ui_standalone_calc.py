@@ -7,7 +7,7 @@ here = os.path.dirname(os.path.abspath(__file__))
 URL = sys.argv[1] if len(sys.argv) > 1 else 'file://' + os.path.join(here, '..', 'ramgear-standalone.html')
 EX = {
   'fd500-diff': {'B': '30', 'D': '8', 'K': '1'}, 'fauter-diff': {'B': '22.5', 'D': '3', 'K': '1', 'Q': '1'},
-  'tos-fo10-diff': {'B': '30', 'D': '8', 'K': '1', 'Q': '1'},
+  'tos-fo10-diff': {'B': '30', 'D': '8', 'K': '1', 'Q': '1', 'Z': '40'},
   'hob-rpm-time': {'DA': '3', 'HELIX': '20', 'SF': '100', 'NT': '40', 'SN': '1', 'FEED': '.08', 'LC': '2', 'NC': '1', 'NP': '10', 'SETUP': '60'},
 }
 fails, errors = [], []
@@ -43,6 +43,25 @@ with sync_playwright() as p:
             if el.evaluate('e => e.tagName') == 'INPUT': el.fill('')
         pg.click('button:has-text("Fill blanks")'); pg.click('button:has-text("Calculate")')
         if not ratio_shown(pg): fails.append(f'{mid}: no ratio after Fill blanks')
+    # v1.4: FO-10 index train (24 x starts / z) with ranked gear matches, 4- and 2-gear
+    for (k_, z_, want) in (('1', '40', '.6'), ('2', '48', '1')):
+        pg.goto(URL + '#/m/tos-fo10-diff'); pg.wait_for_selector('form.grid-form')
+        for k, v in {'B': '30', 'D': '8', 'K': k_, 'Q': '1', 'Z': z_}.items():
+            el = pg.locator('#in-' + k)
+            if el.evaluate('e => e.tagName') == 'SELECT': el.select_option(v)
+            else: el.fill(v)
+        pg.click('button:has-text("Calculate")'); vals = ratio_shown(pg); print('fo10 index', k_, z_, vals)
+        if not vals or want not in vals: fails.append(f'fo10 index z={z_} K={k_}: expected {want} in {vals}')
+        card = pg.locator('.card', has=pg.locator('h3:has-text("Index change gears")'))
+        txt = ' '.join(card.inner_text().split())
+        if 'Ratio needed: ' + want + ' ' not in txt: fails.append(f'fo10 index card ratio wrong (z={z_}): {txt[:200]}')
+        if card.locator('tbody tr').count() == 0: fails.append(f'fo10 index: no gear matches (z={z_})')
+        if card.locator('select').nth(1).input_value() != 'fo10-index-20-88': fails.append('fo10 index: default inventory not FO-10 index gears')
+        card.locator('select').nth(2).select_option('2'); pg.wait_for_timeout(200)
+        card = pg.locator('.card', has=pg.locator('h3:has-text("Index change gears")'))
+        if card.locator('tbody tr').count() == 0: fails.append(f'fo10 index: no 2-gear matches (z={z_})')
+        card.locator('select').nth(2).select_option('4')
+    if 'Index ratio = 24 × hob starts ÷ z' not in pg.content(): fails.append('index formula label missing')
     pg.goto(URL + '#/new'); pg.wait_for_selector('.msg.ok')
     pg.click('button:has-text("Save machine")'); pg.wait_for_selector('form.grid-form')
     for k, v in {'HELIX': '20', 'MN': '3', 'STARTS': '1'}.items(): pg.fill('#in-' + k, v)

@@ -24,11 +24,11 @@ const DIFF_INPUTS = [
 ];
 const DIFF_TRAIN = [{ kind: 'differential', label: 'Differential change gears (A/B x C/D)', ratio: 'R', strategy: 'legacy-ramgear', inventory: 'legacy-20-88' }];
 
-function differential(id, menu, name, machineConst, constNote, metricExpr, inchExpr, extraNote) {
+function differential(id, menu, name, machineConst, constNote, metricExpr, inchExpr, extraNote, extra = {}) {
   return {
     id, menu, name, builtin: true, numeric: 'gwbasic',
     description: `Differential change-gear ratio for helical gears on the ${name}. Original menu option (${menu}).${extraNote ? ' ' + extraNote : ''}`,
-    inputs: [...JOB, ...DIFF_INPUTS],
+    inputs: [...JOB, ...DIFF_INPUTS, ...(extra.inputs || [])],
     constants: [
       { name: 'P', expr: '3.14159264#', label: 'Pi as typed in the original (3.14159264, last digit off - no effect in single precision)' },
       { name: 'O', expr: machineConst, label: constNote },
@@ -37,10 +37,11 @@ function differential(id, menu, name, machineConst, constNote, metricExpr, inchE
     formulas: [
       { name: 'C', expr: 'B * P / 180', label: 'Helix angle in radians' },
       { name: 'R', expr: `IF(Q = 1, ${metricExpr}, ${inchExpr})`, label: 'Differential ratio' },
+      ...(extra.formulas || []),
     ],
-    outputs: [{ name: 'R', label: 'Differential change-gear ratio needed', format: 'basic' }],
+    outputs: [{ name: 'R', label: 'Differential change-gear ratio needed', format: 'basic' }, ...(extra.outputs || [])],
     report: ['R'],
-    trains: DIFF_TRAIN,
+    trains: [...DIFF_TRAIN, ...(extra.trains || [])],
   };
 }
 
@@ -53,7 +54,14 @@ export const BUILTIN_MACHINES = [
   differential('fd500-diff', '3', 'FD-500 Overton', '6', 'Machine constant 6 (FD-500)', 'O * SIN(C) / D / K', '(O / M) * SIN(C) * D / K'),
   differential('fauter-diff', '4', 'Fauter', '11.9367', 'Machine constant 11.9367 (Fauter)', 'O * SIN(C) / D / K', '(O / M) * SIN(C) * D / K'),
   differential('tos-fo10-diff', '7', 'TOS FO-10', '11.9367', 'Machine constant 11.9367 (the original jumps into the Fauter routine, so FO-10 uses the Fauter constant)', 'O * SIN(C) / D / K', '(O / M) * SIN(C) * D / K',
-    'In the original the FO-10 routine jumps into the Fauter code (GOTO 4200/4220), so it gives exactly the Fauter result. Please confirm 11.9367 is right for the FO-10.'),
+    'In the original the FO-10 routine jumps into the Fauter code (GOTO 4200/4220), so it gives exactly the Fauter result. Please confirm 11.9367 is right for the FO-10.',
+    // v1.4: index change gears (Gary: base index formula 24/z). Not in the original BASIC.
+    {
+      inputs: [{ name: 'Z', label: 'Number of teeth in gear (z)', unit: 'teeth', example: '40', basic: '(new in v1.4 - used by the index calculation)' }],
+      formulas: [{ name: 'RIDX', expr: '24 * K / Z', label: 'Index ratio = 24 × hob starts ÷ z' }],
+      outputs: [{ name: 'RIDX', label: 'Index ratio = 24 × hob starts ÷ z', format: 'basic' }],
+      trains: [{ kind: 'index', label: 'Index change gears (A/B x C/D) - Index ratio = 24 × hob starts ÷ z', ratio: 'RIDX', strategy: 'ranked', inventory: 'fo10-index-20-88', gears: 4, maxResults: 20 }],
+    }),
   {
     id: 'hob-rpm-time', menu: '9', name: 'Hob RPM & cutting time', builtin: true, numeric: 'gwbasic',
     description: 'Hob RPM from surface feet, and cutting time per cut, per part and for the whole job. Original menu option (9).',
@@ -120,6 +128,12 @@ export const BUILTIN_INVENTORIES = [
     name: 'Original program: every tooth count 20-88 (any gear may repeat)',
     note: 'What the old BASIC search assumes. The legacy search ignores inventories unless you turn on "only use gears from the inventory".',
     gears: range(20, 88, 4),
+  },
+  {
+    id: 'fo10-index-20-88', builtin: true,
+    name: 'FO-10 index gears',
+    note: 'Placeholder: one of each tooth count 20-88. Copy this inventory and edit it to the index gears you really have, then pick your copy on the FO-10 index train.',
+    gears: range(20, 88, 1),
   },
 ];
 

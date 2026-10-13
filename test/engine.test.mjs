@@ -156,5 +156,30 @@ t('bundle round trip and validation', () => {
   assert.ok(!calc.parseBundle('{"hello":1}').ok);
 });
 
+// --- v1.4: FO-10 index train (24 x starts / z)
+t('FO-10 index ratio and ranked index gears', () => {
+  const base = { B: '30', D: '8', K: '1', Q: 1 };
+  const diffRef = calc.runMachine('fauter-diff', base);
+  const r1 = calc.runMachine('tos-fo10-diff', { ...base, Z: '40' });
+  assert.ok(r1.ok, String(r1.errors));
+  assert.equal(r1.num.format(r1.env.get('RIDX')).trim(), '.6');
+  assert.equal(r1.num.format(r1.env.get('R')), diffRef.num.format(diffRef.env.get('R'))); // differential unchanged
+  const r2 = calc.runMachine('tos-fo10-diff', { ...base, K: '2', Z: '48' });
+  assert.equal(r2.num.toJS(r2.env.get('RIDX')), 1);
+  const def = calc.BUILTIN_MACHINES.find((m) => m.id === 'tos-fo10-diff');
+  const ti = def.trains.find((x) => x.kind === 'index');
+  assert.equal(ti.strategy, 'ranked'); assert.equal(ti.inventory, 'fo10-index-20-88');
+  assert.equal(def.trains[0].kind, 'differential'); assert.equal(def.trains[0].strategy, 'legacy-ramgear');
+  const inv = calc.BUILTIN_INVENTORIES.find((i) => i.id === 'fo10-index-20-88');
+  assert.equal(inv.name, 'FO-10 index gears'); assert.equal(inv.gears.length, 69); assert.ok(inv.gears.every((g) => g.qty === 1));
+  for (const gears of [4, 2]) {
+    const tr = calc.runTrain(r1, { ...ti, gears });
+    assert.equal(tr.type, 'ranked'); assert.ok(tr.list.length > 0);
+    const best = tr.list[0];
+    assert.ok(Math.abs(best.err) < 1e-12 || Math.abs(best.ratio - 0.6) < 1e-12, JSON.stringify(best));
+    if (gears === 2) assert.equal(best.A / best.B, 0.6);
+    else assert.ok(new Set([best.A, best.B, best.C, best.D]).size === 4); // one of each
+  }
+});
 console.log(`engine tests: ${n - failed}/${n} passed`);
 if (failed) process.exitCode = 1;

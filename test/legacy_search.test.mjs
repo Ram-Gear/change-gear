@@ -27,6 +27,7 @@ for (let i = 0; i < 5000; i++) {
   const metric = rnd() < 0.5;
   const inputs = id === 'bc-feed' ? { CC: dec(1, 6, 2), CP: dec(.1, 1.2, 4), B: dec(5, 45, 2) } : { B: dec(1, 45, 2), D: metric ? dec(1, 10, 1) : String(Math.floor(2 + rnd() * 30)), K: rnd() < .8 ? '1' : '2', Q: metric ? 1 : 0 };
   if (REMOVED.has(id) || (refIds && !refIds.has(`${id}-${i}`))) continue;
+  if (id === 'tos-fo10-diff') inputs.Z = '40'; // v1.4 index input (not used by R)
   const r = calc.runMachine(id, inputs);
   const R = r.env.get('R');
   // keep ratios whose first 3 matches lie within D <= 40 so the slow Python reference finishes

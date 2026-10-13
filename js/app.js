@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 const STORE_KEY = 'ramgear.changegear.v1';
-export const APP_VERSION = 'RAM-GEAR web v1.3 (2026-10-13)';
+export const APP_VERSION = 'RAM-GEAR web v1.4 (2026-10-13)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 let storageProblem = null;

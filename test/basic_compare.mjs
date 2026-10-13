@@ -97,6 +97,7 @@ function buildCase(c) {
   } else {
     keys.push(c.so, 'PART', c.B, c.D, c.K, c.Q);
     inputs = { B: c.B, D: c.D, K: c.K, Q: c.Q === 'M' ? 1 : 0 };
+    if (c.menu === 7) inputs.Z = 40; // v1.4 index input: not in the BASIC, does not affect the differential
   }
   const r = calc.runMachine(def, inputs);
   if (!r.ok) throw new Error(`JS evaluation failed for ${c.id}: ${r.errors}`);

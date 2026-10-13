@@ -9,7 +9,7 @@ SHOTS = sys.argv[2] if len(sys.argv) > 2 else None
 errors = []
 EX = {
   'fd500-diff': {'B': '30', 'D': '8', 'K': '1'}, 'fauter-diff': {'B': '22.5', 'D': '3', 'K': '1', 'Q': '1'},
-  'tos-fo10-diff': {'B': '30', 'D': '8', 'K': '1'},
+  'tos-fo10-diff': {'B': '30', 'D': '8', 'K': '1', 'Z': '40'},
   'hob-rpm-time': {'DA': '3', 'HELIX': '20', 'SF': '100', 'NT': '40', 'SN': '1', 'FEED': '.08', 'LC': '2', 'NC': '1', 'NP': '10', 'SETUP': '60'},
 }
 with sync_playwright() as p:

@@ -3,7 +3,23 @@
 Source: `source.bas` (RAM-GEAR "GEAR HOBBING MACHINE PROGRAMS", by Aaron Tagle & friends).
 New app: `app/` (static HTML/CSS/JS, no build step, no CDN, works offline).
 
-## 0. v1.3 (2026-10-13): four original programs removed at Gary's request
+## 0. v1.4 (2026-10-13): FO-10 index change gears
+
+Gary: the FO-10 base index formula is **24/z**. The built-in TOS FO-10 machine now has:
+* a new input box **"Number of teeth in gear (z)"** (`Z`), used only by the index calculation.
+  It reuses the existing hob starts input `K` ("Number of leads (starts) on the hob").
+* formula `RIDX = 24 * K / Z`, labelled **"Index ratio = 24 × hob starts ÷ z"** (1 start gives exactly 24/z),
+  shown as a second result line.
+* a second gear train, kind `index`, strategy "best from inventory" (ranked by error, 4 gears with a
+  2-gear option, ratio and error per match), using the new built-in inventory **"FO-10 index gears"**
+  (`fo10-index-20-88`, one each of 20-88, placeholder: copy it and edit to the real gears).
+* The differential train, formula and printout are unchanged; all BASIC comparison tests still
+  pass (the comparison feeds Z = 40, which the differential does not use).
+* New tests: engine (z=40, 1 start -> .6; z=48, 2 starts -> 1; ranked 4- and 2-gear searches) and
+  browser (index ratio + gear matches on the FO-10 page).
+* This index formula is not in the original BASIC program, so there is no BASIC result to compare to.
+
+## 0a. v1.3 (2026-10-13): four original programs removed at Gary's request
 
 Gary asked to get rid of **(1) Barber-Colman index, (2) Barber-Colman feed, (5) TOS OFA-71A
 differential and (6) FD-320 Overton differential**. They are gone from the menu, the table of
