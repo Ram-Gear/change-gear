@@ -14,6 +14,7 @@ body { margin:0; font:15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Ari
 .nav .num { display:inline-block; width:26px; color:var(--muted); font-variant-numeric:tabular-nums; }
 .main { flex:1; padding:18px 22px 60px; max-width:1200px; }
 .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px 18px; margin-bottom:16px; }
+.card.out-card { border-top:5px solid #2E7386; border-radius:6px; } /* strip copied from Ram-Gear/app-hub tile (.card.live, --teal) */
 .card h2 { margin:0 0 6px; font-size:20px; }
 .card h3 { margin:0 0 8px; font-size:16px; }
 .muted { color:var(--muted); }

@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 import * as dataStore from './store.js';
-export const APP_VERSION = 'RAM-GEAR web v1.6.1 (2026-10-13)';
+export const APP_VERSION = 'RAM-GEAR web v1.6.2 (2026-10-13)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 function showStorageBanner(problem) {
@@ -221,7 +221,7 @@ function renderMachine(id) {
       return;
     }
     const job = (m.inputs || []).filter((i) => i.type === 'text').map((i) => [i.label, inputs[i.name.toUpperCase()] || '']);
-    const card = h('div', { class: 'card' }, h('div', { class: 'row', style: 'justify-content:space-between' }, h('h3', {}, 'Results'),
+    const card = h('div', { class: 'card out-card' }, h('div', { class: 'row', style: 'justify-content:space-between' }, h('h3', {}, 'Results'),
       h('button', { onclick: () => printSheet(m, res, inputs, job, trainState) }, 'Print sheet')));
     res.warnings.forEach((w) => card.append(msg('warn', w.replace('Division by zero', 'Division by zero (the original BASIC prints "Division by zero" and carries on with its largest number, 1.701412E+38)'))));
     card.append(h('table', { class: 'results-table' }, compiled.outputs.map((o) => h('tr', {}, h('td', {}, o.label || o.name), h('td', { class: 'big' }, formatOutput(res, o))))));
@@ -268,7 +268,7 @@ function formatOutput(res, o) {
 function renderTrain(m, res, i, trainState, onPresetsChanged) {
   const base = m.trains[i];
   const t = calc.effectiveTrain(base, trainOverride(m, i));
-  const card = h('div', { class: 'card' });
+  const card = h('div', { class: 'card out-card' });
   const body = h('div', {});
   const st = (trainState[i] = { train: t, matches: [], selected: null });
   const invSel = h('select', { onchange: () => { setTrainOverride(m, i, { inventory: invSel.value }); rerender(); } }, allInventories().map((v) => h('option', { value: v.id }, v.name)));
@@ -884,7 +884,7 @@ async function openManual(m) {
 
 // ------------------------------------------------------------------ index gear presets editor
 function presetEditor(m, onChange) {
-  const card = h('div', { class: 'card', id: 'preset-editor' });
+  const card = h('div', { class: 'card out-card', id: 'preset-editor' });
   let rows;
   const info = h('div', {});
   const csvPreview = h('div', {});
