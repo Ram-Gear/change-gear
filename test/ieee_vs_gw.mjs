@@ -5,11 +5,9 @@ let seed = 777;
 const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
 const dec = (a, b, d) => (a + rnd() * (b - a)).toFixed(d);
 const gen = {
-  'bc-index': () => ({ HAND: rnd() < .5 ? 1 : 2, C: dec(.5, 10, 2), N: String(Math.floor(6 + rnd() * 150)) }),
-  'bc-feed': () => ({ CC: dec(1, 6, 2), CP: dec(.1, 1.2, 4), B: dec(1, 45, 2) }),
   'hob-rpm-time': () => ({ DA: dec(1, 6, 3), HELIX: dec(0, 45, 2), SF: dec(50, 400, 0), NT: String(Math.floor(10 + rnd() * 190)), SN: '1', FEED: dec(.01, .2, 3), LC: dec(.5, 10, 3), NC: '2', NP: String(Math.floor(1 + rnd() * 300)), SETUP: dec(0, 300, 0) }),
 };
-for (const id of ['fd500-diff', 'fauter-diff', 'tos-ofa71a-diff']) gen[id] = () => { const m = rnd() < .5; return { B: dec(1, 45, 3), D: m ? dec(1, 10, 2) : String(Math.floor(2 + rnd() * 30)), K: '1', Q: m ? 1 : 0 }; };
+for (const id of ['fd500-diff', 'fauter-diff', 'tos-fo10-diff']) gen[id] = () => { const m = rnd() < .5; return { B: dec(1, 45, 3), D: m ? dec(1, 10, 2) : String(Math.floor(2 + rnd() * 30)), K: '1', Q: m ? 1 : 0 }; };
 const N = 2000;
 for (const [id, g] of Object.entries(gen)) {
   let diffPrint = 0, diffGear = 0, gearCases = 0;

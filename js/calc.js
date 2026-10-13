@@ -8,7 +8,8 @@ export { BUILTIN_MACHINES, BUILTIN_INVENTORIES } from './machines.js';
 
 import { compileMachine, evaluateMachine } from './formula.js';
 import { legacyRamgear, rankedSearch, bcBreakdown } from './search.js';
-import { BUILTIN_MACHINES, BUILTIN_INVENTORIES } from './machines.js';
+import { BUILTIN_MACHINES, BUILTIN_INVENTORIES, REMOVED_BUILTIN_IDS } from './machines.js';
+export { REMOVED_BUILTIN_IDS };
 
 export const BUNDLE_FORMAT = 'ramgear-change-gear';
 export const BUNDLE_VERSION = 1;
@@ -109,6 +110,7 @@ export function parseBundle(json) {
   }
   const builtinOverrides = {};
   for (const [id, ov] of Object.entries(data.builtinOverrides || {})) {
+    if (REMOVED_BUILTIN_IDS.includes(id)) continue; // settings for a removed original program: silently dropped
     if (!BUILTIN_MACHINES.some((b) => b.id === id)) { errors.push(`Override for unknown built-in "${id}" ignored`); continue; }
     builtinOverrides[id] = ov;
   }

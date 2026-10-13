@@ -3,6 +3,25 @@
 Source: `source.bas` (RAM-GEAR "GEAR HOBBING MACHINE PROGRAMS", by Aaron Tagle & friends).
 New app: `app/` (static HTML/CSS/JS, no build step, no CDN, works offline).
 
+## 0. v1.3 (2026-10-13): four original programs removed at Gary's request
+
+Gary asked to get rid of **(1) Barber-Colman index, (2) Barber-Colman feed, (5) TOS OFA-71A
+differential and (6) FD-320 Overton differential**. They are gone from the menu, the table of
+contents, the built-in machine definitions and the routine screens. Kept: (3) FD-500 Overton,
+(4) Fauter, (7) TOS FO-10 (still runs the Fauter math, constant 11.9367), (9) hob RPM & cutting
+time, plus custom machines and the machine editor. The "Barber-Colman breakdown" gear-search
+strategy is still available for custom machines (and for copies Gary made of the BC index).
+
+* Saved browser data: settings ("built-in overrides") for the removed ids are dropped when the
+  app loads; custom machines, including copies of the removed programs, are untouched. Opening an
+  old link such as `#/m/bc-index` shows a short "removed" message.
+* Importing an old JSON backup still works: overrides for the removed ids are silently ignored.
+* The original program description below (sections 2-3) is kept for reference; it still
+  describes all 8 routines of `source.bas`.
+* Tests: the removed modules are no longer compared. `test/fixtures/machines_v1.2.mjs` is a
+  frozen copy of the v1.2 definitions used only so the BASIC-comparison case generator keeps the
+  same random sequence (cached PC-BASIC transcripts stay valid).
+
 ## 1. How to run
 
 * **Normal way:** in `app/`, double-click `start-app.bat` (Windows) or run `./start-app.sh`

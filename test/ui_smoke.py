@@ -8,9 +8,7 @@ URL = sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8000/'
 SHOTS = sys.argv[2] if len(sys.argv) > 2 else None
 errors = []
 EX = {
-  'bc-index': {'C': '4', 'N': '40'}, 'bc-feed': {'CC': '2', 'CP': '.3927', 'B': '30'},
   'fd500-diff': {'B': '30', 'D': '8', 'K': '1'}, 'fauter-diff': {'B': '22.5', 'D': '3', 'K': '1', 'Q': '1'},
-  'tos-ofa71a-diff': {'B': '15', 'D': '6', 'K': '1'}, 'fd320-diff': {'B': '30', 'D': '8', 'K': '1'},
   'tos-fo10-diff': {'B': '30', 'D': '8', 'K': '1'},
   'hob-rpm-time': {'DA': '3', 'HELIX': '20', 'SF': '100', 'NT': '40', 'SN': '1', 'FEED': '.08', 'LC': '2', 'NC': '1', 'NP': '10', 'SETUP': '60'},
 }
@@ -20,6 +18,9 @@ with sync_playwright() as p:
     pg.on('console', lambda m: errors.append('console.' + m.type + ': ' + m.text) if m.type in ('error', 'warning') else None)
     pg.on('pageerror', lambda e: errors.append('pageerror: ' + str(e)))
     pg.goto(URL); pg.wait_for_selector('nav a')
+    nav = pg.locator('nav').inner_text()
+    for gone in ['Barber', 'OFA-71A', 'FD-320']:
+        if gone in nav: errors.append('removed routine still in menu: ' + gone)
     results = {}
     for mid, vals in EX.items():
         pg.goto(URL + '#/m/' + mid); pg.wait_for_selector('form.grid-form')
@@ -34,9 +35,6 @@ with sync_playwright() as p:
             pg.click('button:has-text("Find change gears")')
             pg.wait_for_function("() => document.querySelectorAll('tbody tr').length > 0", timeout=60000)
             r['firstMatch'] = pg.locator('tbody tr').first.inner_text().replace('\t', ' ')
-        if mid == 'bc-index':
-            pg.locator('tr.whole').first.click()
-            r['breakdown'] = pg.locator('pre.screen').last.inner_text()
         results[mid] = r
         if SHOTS: pg.screenshot(path=f'{SHOTS}/{mid}.png', full_page=True)
     # custom machine: new -> save -> run

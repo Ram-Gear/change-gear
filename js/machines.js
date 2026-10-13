@@ -1,4 +1,4 @@
-// machines.js - the 8 routines of the original RAM-GEAR BASIC menu, rebuilt as
+// machines.js - routines of the original RAM-GEAR BASIC menu, rebuilt as
 // read-only machine definitions in the same format Gary uses for his own machines.
 // Formulas are copied term-for-term from source.bas (same order of operations,
 // same constants as typed, same single-precision variables), so the gwbasic
@@ -44,66 +44,14 @@ function differential(id, menu, name, machineConst, constNote, metricExpr, inchE
   };
 }
 
+// Removed at Gary's request (v1.3, 2026-10-13): Barber-Colman index (1), Barber-Colman
+// feed (2), TOS OFA-71A (5) and FD-320 Overton (6). Saved settings for these ids are
+// ignored; custom copies Gary made are ordinary custom machines and are kept.
+export const REMOVED_BUILTIN_IDS = ['bc-index', 'bc-feed', 'tos-ofa71a-diff', 'fd320-diff'];
+
 export const BUILTIN_MACHINES = [
-  {
-    id: 'bc-index', menu: '1', name: 'Barber-Colman - index', builtin: true, numeric: 'gwbasic',
-    description: 'Index change-gear ratio L/M for the Barber-Colman hobber, then optional "break the numbers down" tables. Original menu option (1).',
-    inputs: [
-      ...JOB,
-      {
-        name: 'HAND', type: 'choice', label: 'Hob and helix hand', default: 1,
-        options: [
-          { value: 1, label: 'Same hand (hob and helix both RH or both LH): M = N x C - 1' },
-          { value: 2, label: 'Opposite hand: M = N x C + 1' },
-        ],
-        basic: 'DO THE HOB AND THE HELIX ANGLE HAVE THE SAME HAND (Y) / DOES THE HOB AND HELIX HAVE OPPOSITE ANGLES (Y)',
-      },
-      { name: 'C', label: 'Machine constant', unit: '', example: '4', basic: 'ENTER THE CONSTANT' },
-      { name: 'N', label: 'Number of teeth in part', unit: 'teeth', example: '40', basic: 'ENTER THE NUMBER OF TEETH' },
-    ],
-    constants: [],
-    formulas: [
-      { name: 'L', expr: '15 * C', label: 'Ratio top number (L = 15 x constant)' },
-      { name: 'M', expr: 'IF(HAND = 1, ((N * C) - 1), ((N * C) + 1))', label: 'Ratio bottom number' },
-      { name: 'F', expr: 'L / M', label: 'Index ratio as a decimal' },
-    ],
-    outputs: [
-      { name: 'L', label: 'Index ratio - top number (L)', format: 'basic' },
-      { name: 'M', label: 'Index ratio - bottom number (M)', format: 'basic' },
-      { name: 'F', label: 'Index ratio L / M as a decimal', format: 'basic' },
-    ],
-    report: ['L; "/"; M', 'F'],
-    trains: [{ kind: 'index', label: 'Break the numbers down (X x W / J x H)', strategy: 'bc-breakdown', values: ['L', 'M'], from: 20, to: 120 }],
-  },
-  {
-    id: 'bc-feed', menu: '2', name: 'Barber-Colman - feed', builtin: true, numeric: 'gwbasic',
-    description: 'Feed change-gear ratio for the Barber-Colman hobber. Original menu option (2).',
-    inputs: [
-      ...JOB,
-      { name: 'CC', label: 'Machine constant', unit: '', example: '1', basic: 'ENTER THE CONSTANT' },
-      { name: 'CP', label: 'Circular pitch', unit: 'in', example: '.3927', basic: 'ENTER THE CIRCULAR PITCH' },
-      { name: 'B', label: 'Helix angle', unit: 'degrees', example: '30', basic: 'ENTER THE HELIX ANGLE' },
-    ],
-    constants: [],
-    formulas: [
-      { name: 'BR', expr: 'B * (3.14159265# / 180)', label: 'Helix angle in radians (the original overwrites B with this and prints it as "ANGLE")' },
-      { name: 'R', expr: 'CP / (SIN(BR) * CC * .0375)', label: 'Feed ratio' },
-      { name: 'R1', expr: 'R + .0001', label: 'R + .0001 (computed by the original but never used)' },
-      { name: 'R2', expr: 'R - .0001', label: 'R - .0001 (computed by the original but never used)' },
-    ],
-    outputs: [
-      { name: 'R', label: 'Feed change-gear ratio needed', format: 'basic' },
-      { name: 'BR', label: 'Helix angle in RADIANS (shown by the original as "ANGLE")', format: 'basic' },
-    ],
-    report: ['"R="; R, "C="; CC, "ANGLE="; BR, "CIR PITCH="; CP'],
-    trains: [{ kind: 'feed', label: 'Feed change gears (A/B x C/D)', ratio: 'R', strategy: 'legacy-ramgear', inventory: 'legacy-20-88' }],
-  },
   differential('fd500-diff', '3', 'FD-500 Overton', '6', 'Machine constant 6 (FD-500)', 'O * SIN(C) / D / K', '(O / M) * SIN(C) * D / K'),
   differential('fauter-diff', '4', 'Fauter', '11.9367', 'Machine constant 11.9367 (Fauter)', 'O * SIN(C) / D / K', '(O / M) * SIN(C) * D / K'),
-  differential('tos-ofa71a-diff', '5', 'TOS OFA-71A', '24', 'Machine constant 24 (TOS OFA-71A)', '(O * SIN(C)) / (P * D * K)', '(O * D * SIN(C)) / (M * P * K)',
-    'This is the only differential formula that also divides by pi.'),
-  differential('fd320-diff', '6', 'FD-320 Overton', '6', 'Machine constant 6 (same as FD-500 in the original)', 'O * SIN(C) / D / K', '(O / M) * SIN(C) * D / K',
-    'In the original this routine is an exact copy of the FD-500 one (same constant 6).'),
   differential('tos-fo10-diff', '7', 'TOS FO-10', '11.9367', 'Machine constant 11.9367 (the original jumps into the Fauter routine, so FO-10 uses the Fauter constant)', 'O * SIN(C) / D / K', '(O / M) * SIN(C) * D / K',
     'In the original the FO-10 routine jumps into the Fauter code (GOTO 4200/4220), so it gives exactly the Fauter result. Please confirm 11.9367 is right for the FO-10.'),
   {

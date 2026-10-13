@@ -119,11 +119,25 @@ t('ranked search equals brute force', () => {
   const two = calc.rankedSearch(0.5, inv, { gears: 2, maxResults: 3 });
   assert.equal(two[0].err, 0);
 });
-t('bc breakdown', () => {
-  const r = calc.runMachine('bc-index', { HAND: 1, C: '4', N: '40' });
-  const tr = calc.runTrain(r, calc.getBuiltin('bc-index').trains[0]);
+t('bc-breakdown strategy still works for custom machines (Barber-Colman built-in removed in v1.3)', () => {
+  const def = { id: 'custom-bc', name: 'BC copy', builtin: false, numeric: 'gwbasic', inputs: [{ name: 'HAND' }, { name: 'C' }, { name: 'N' }], constants: [],
+    formulas: [{ name: 'L', expr: '15 * C' }, { name: 'M', expr: 'IF(HAND = 1, ((N * C) - 1), ((N * C) + 1))' }], outputs: [{ name: 'L' }, { name: 'M' }], report: [],
+    trains: [{ kind: 'index', label: 'x', strategy: 'bc-breakdown', values: ['L', 'M'], from: 20, to: 120 }] };
+  const r = calc.runMachine(def, { HAND: 1, C: '4', N: '40' });
+  const tr = calc.runTrain(r, def.trains[0]);
   assert.equal(tr.tables[0].rows.length, 101);
   assert.deepEqual(tr.tables[0].rows.filter((x) => x.whole).map((x) => x.W), [20, 30, 60]);
+});
+t('removed built-ins: old backups import cleanly', () => {
+  for (const id of ['bc-index', 'bc-feed', 'tos-ofa71a-diff', 'fd320-diff']) assert.ok(!calc.getBuiltin(id));
+  assert.deepEqual(calc.BUILTIN_MACHINES.map((m) => m.id), ['fd500-diff', 'fauter-diff', 'tos-fo10-diff', 'hob-rpm-time']);
+  const copy = { ...calc.newMachineTemplate(), id: 'custom-copyofa', name: 'TOS OFA-71A (copy)' };
+  const old = { ...calc.makeBundle({ machines: [copy], inventories: [], builtinOverrides: {} }),
+    builtinOverrides: { 'bc-index': { trains: { 0: { from: 30 } } }, 'fd320-diff': { trains: { 0: { strategy: 'ranked' } } }, 'fauter-diff': { trains: { 0: { strategy: 'ranked' } } } } };
+  const p = calc.parseBundle(JSON.stringify(old));
+  assert.ok(p.ok, p.errors.join());
+  assert.deepEqual(Object.keys(p.builtinOverrides), ['fauter-diff']);
+  assert.equal(p.machines[0].name, 'TOS OFA-71A (copy)');
 });
 
 // --- import / export

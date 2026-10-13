@@ -11,6 +11,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import * as calc from '../js/calc.js';
+import { BUILTIN_MACHINES as V12_MACHINES } from './fixtures/machines_v1.2.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const args = Object.fromEntries(process.argv.slice(2).map((a) => { const [k, v] = a.replace(/^--/, '').split('='); return [k, v === undefined ? true : v]; }));
@@ -29,7 +30,9 @@ const rint = (a, b) => a + Math.floor(rnd() * (b - a + 1));
 const rdec = (a, b, d) => (a + rnd() * (b - a)).toFixed(d).replace(/^0\./, '.');
 
 // ---------------------------------------------------------------- expected output via JS
-const MODULE = { 1: 'bc-index', 2: 'bc-feed', 3: 'fd500-diff', 4: 'fauter-diff', 5: 'tos-ofa71a-diff', 6: 'fd320-diff', 7: 'tos-fo10-diff', 9: 'hob-rpm-time' };
+// all menus of the original, used only to keep the case generator's RNG sequence unchanged
+const ALL_MODULES = { 1: 'bc-index', 2: 'bc-feed', 3: 'fd500-diff', 4: 'fauter-diff', 5: 'tos-ofa71a-diff', 6: 'fd320-diff', 7: 'tos-fo10-diff', 9: 'hob-rpm-time' };
+const MODULE = { 3: 'fd500-diff', 4: 'fauter-diff', 7: 'tos-fo10-diff', 9: 'hob-rpm-time' };
 
 function warnLines(res) { return res.warnings.map((w) => w.replace(/ while working out .*$/, '')); }
 
@@ -147,7 +150,7 @@ function runBasic(c, keys, timeoutMs) {
 // position (loop passes) of the n-th legacy match, used to keep PC-BASIC runs short
 const GEAR_POS_LIMIT = Number(args.gearlimit || 100000);
 function gearPos(c, n) {
-  const def = calc.getBuiltin(MODULE[c.menu]);
+  const def = V12_MACHINES.find((m) => m.id === ALL_MODULES[c.menu]);
   const inputs = c.menu === 2 ? { CC: c.CC, CP: c.CP, B: c.B } : { B: c.B, D: c.D, K: c.K, Q: c.Q === 'M' ? 1 : 0 };
   const r = calc.runMachine(def, inputs);
   if (!r.ok || !(r.num.toJS(r.env.get('R')) > 0)) return Infinity;
@@ -210,7 +213,9 @@ function makeCases() {
   }
   cases.push({ id: 'm9-zero-parts', menu: 9, DA: '3', HELIX: '20', SF: '100', NT: '40', SN: '1', FEED: '.08', LC: '2', NC: '1', NP: '0', SETUP: '60' });
   cases.push({ id: 'm9-big', menu: 9, DA: '.5', HELIX: '0', SF: '100', NT: '200', SN: '1', FEED: '.0001', LC: '120', NC: '9', NP: '5000', SETUP: '480' });
-  return cases;
+  // v1.3: menus 1, 2, 5, 6 removed at Gary's request. Cases are still generated (same RNG
+  // sequence, so the cached transcripts stay valid) and then dropped.
+  return cases.filter((c) => MODULE[c.menu]);
 }
 
 // ---------------------------------------------------------------- main

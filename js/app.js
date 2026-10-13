@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 const STORE_KEY = 'ramgear.changegear.v1';
-export const APP_VERSION = 'RAM-GEAR web v1.2 (2026-10-10b)';
+export const APP_VERSION = 'RAM-GEAR web v1.3 (2026-10-13)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 let storageProblem = null;
@@ -21,7 +21,9 @@ const $nav = document.getElementById('nav');
 function loadStore() {
   try {
     const s = JSON.parse(lsGet(STORE_KEY) || '{}') || {};
-    return { machines: s.machines || [], inventories: s.inventories || [], builtinOverrides: s.builtinOverrides || {}, lastInputs: s.lastInputs || {}, settings: s.settings || {} };
+    const ov = (s.builtinOverrides && typeof s.builtinOverrides === 'object') ? s.builtinOverrides : {};
+    for (const id of calc.REMOVED_BUILTIN_IDS) delete ov[id];
+    return { machines: s.machines || [], inventories: s.inventories || [], builtinOverrides: ov, lastInputs: s.lastInputs || {}, settings: s.settings || {} };
   } catch (e) { return { machines: [], inventories: [], builtinOverrides: {}, lastInputs: {}, settings: {} }; }
 }
 let store = loadStore();
@@ -107,7 +109,7 @@ function renderHome() {
   $main.replaceChildren(
     h('div', { class: 'card' },
       h('h2', {}, 'RAM-GEAR gear hobbing machine programs'),
-      h('p', {}, 'Pick a program on the left. The eight programs from the original BASIC menu give exactly the same numbers as the old program. You can also add your own machines with their own formulas and gear inventories.'),
+      h('p', {}, 'Pick a program on the left. The programs kept from the original BASIC menu give exactly the same numbers as the old program. You can also add your own machines with their own formulas and gear inventories.'),
       h('table', {}, h('tr', {}, h('th', {}, 'Menu'), h('th', {}, 'Program'), h('th', {}, 'What it works out')),
         calc.BUILTIN_MACHINES.map((m) => h('tr', {}, h('td', {}, `(${m.menu})`), h('td', {}, h('a', { href: `#/m/${m.id}` }, m.name)), h('td', { class: 'small' }, m.description)))),
     ),
@@ -119,7 +121,7 @@ function renderHome() {
         sel.value = store.settings.legacyNumeric || 'gwbasic';
         return sel;
       })(),
-      h('p', { class: 'small muted' }, 'The two old BASICs round the 7th digit slightly differently. Quick check if you still have an old printout: Barber-Colman index, constant 4.32, 20 teeth, same hand. GW-BASIC prints "64.80001 / 85.4", QBasic-style prints "64.8 / 85.4". Change gears found are the same in almost every case.')),
+      h('p', { class: 'small muted' }, 'The two old BASICs round the 7th digit slightly differently. Change gears found are the same in almost every case.')),
   );
 }
 
@@ -142,6 +144,7 @@ function setTrainOverride(m, i, patch) {
 
 function renderMachine(id) {
   const m = findMachine(id);
+  if (!m && calc.REMOVED_BUILTIN_IDS.includes(id)) { $main.replaceChildren(msg('err', `"${id}" was one of the original programs and has been removed from this app (v1.3). Any copies you made are still under My machines.`)); return; }
   if (!m) { $main.replaceChildren(msg('err', `Machine "${id}" not found.`)); return; }
   const compiled = calc.compileMachine(m);
   const last = store.lastInputs[m.id] || {};

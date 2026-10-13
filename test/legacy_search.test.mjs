@@ -18,10 +18,15 @@ const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed
 const dec = (a, b, d) => (a + rnd() * (b - a)).toFixed(d);
 const items = [];
 const ids = ['bc-feed', 'fd500-diff', 'fauter-diff', 'tos-ofa71a-diff', 'fd320-diff', 'tos-fo10-diff'];
-for (let i = 0; items.length < 150 && i < 5000; i++) {
+// v1.3: bc-feed, tos-ofa71a-diff and fd320-diff were removed at Gary's request. The RNG
+// sequence is unchanged, so the remaining machines' items are the same as in the cached fixture.
+const REMOVED = new Set(calc.REMOVED_BUILTIN_IDS);
+const refIds = fs.existsSync(FIX) ? new Set(JSON.parse(fs.readFileSync(FIX, 'utf8')).map((x) => x.id)) : null;
+for (let i = 0; i < 5000; i++) {
   const id = ids[i % ids.length];
   const metric = rnd() < 0.5;
   const inputs = id === 'bc-feed' ? { CC: dec(1, 6, 2), CP: dec(.1, 1.2, 4), B: dec(5, 45, 2) } : { B: dec(1, 45, 2), D: metric ? dec(1, 10, 1) : String(Math.floor(2 + rnd() * 30)), K: rnd() < .8 ? '1' : '2', Q: metric ? 1 : 0 };
+  if (REMOVED.has(id) || (refIds && !refIds.has(`${id}-${i}`))) continue;
   const r = calc.runMachine(id, inputs);
   const R = r.env.get('R');
   // keep ratios whose first 3 matches lie within D <= 40 so the slow Python reference finishes
