@@ -82,3 +82,8 @@ input.invalid { border-color: #c0392b !important; background: #fff1f0; box-shado
 .simple-sec h3 { margin-top:0; }
 code.formula-show { font-family:ui-monospace,Consolas,monospace; background:#f3f4f6; padding:4px 6px; border-radius:4px; align-self:center; }
 details.advanced > summary { cursor:pointer; font-weight:600; padding:10px 4px; }
+/* v1.6 */
+.badge.preset { background:#2e7d32; color:#fff; }
+tr.preset-row td { background:#eef7ee; font-weight:600; }
+.manual-bar { margin:6px 0; gap:6px; align-items:center; }
+.err-text { color:#b00020; }

@@ -1,34 +1,23 @@
 // app.js - browser UI. All maths lives in calc.js (and the modules it re-exports).
 import * as calc from './calc.js';
 
-const STORE_KEY = 'ramgear.changegear.v1';
-export const APP_VERSION = 'RAM-GEAR web v1.5 (2026-10-13)';
+import * as dataStore from './store.js';
+export const APP_VERSION = 'RAM-GEAR web v1.6 (2026-10-13)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
-let storageProblem = null;
-function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { storageProblem = storageProblem || e; return null; } }
-function lsSet(k, v) { try { window.localStorage.setItem(k, v); return true; } catch (e) { const first = !storageProblem; storageProblem = storageProblem || e; if (first) showStorageBanner(); return false; } }
-function showStorageBanner() {
+function showStorageBanner(problem) {
   if (document.getElementById('storage-banner')) return;
   const d = document.createElement('div'); d.id = 'storage-banner'; d.className = 'msg warn';
-  d.textContent = 'This browser is blocking saved data for this page (' + ((storageProblem && storageProblem.message) || 'storage unavailable') + '). Calculations still work, but gear inventories, your machines and last inputs will not be kept after you close the page. Use Import / export to save a backup, or allow site data for this file in browser settings.';
+  d.textContent = 'This browser is blocking saved data for this page (' + ((problem && problem.message) || 'storage unavailable') + '). Calculations still work, but gear inventories, your machines and last inputs will not be kept after you close the page. Use Import / export to save a backup, or allow site data for this file in browser settings.';
   const main = document.getElementById('main'); if (main && main.parentNode) main.parentNode.insertBefore(d, main); else document.body.prepend(d);
 }
 const $main = document.getElementById('main');
 const $nav = document.getElementById('nav');
 
-// ------------------------------------------------------------------ storage
-function loadStore() {
-  try {
-    const s = JSON.parse(lsGet(STORE_KEY) || '{}') || {};
-    const ov = (s.builtinOverrides && typeof s.builtinOverrides === 'object') ? s.builtinOverrides : {};
-    for (const id of calc.REMOVED_BUILTIN_IDS) delete ov[id];
-    return { machines: s.machines || [], inventories: s.inventories || [], builtinOverrides: ov, lastInputs: s.lastInputs || {}, settings: s.settings || {} };
-  } catch (e) { return { machines: [], inventories: [], builtinOverrides: {}, lastInputs: {}, settings: {} }; }
-}
-let store = loadStore();
-function saveStore() { try { lsSet(STORE_KEY, JSON.stringify(store)); } catch (e) { console.error(e); } }
-if (storageProblem) setTimeout(showStorageBanner, 0);
+// ------------------------------------------------------------------ storage (all access via store.js)
+let store = await dataStore.load(calc.REMOVED_BUILTIN_IDS);
+dataStore.onProblem((p) => setTimeout(() => showStorageBanner(p), 0));
+function saveStore() { dataStore.save(store).catch((e) => console.error(e)); }
 (function stampVersion() {
   const brand = document.querySelector('.brand');
   const v = document.createElement('span'); v.id = 'app-version'; v.className = 'version-stamp'; v.textContent = APP_VERSION;
@@ -46,6 +35,18 @@ const allInventories = () => [...calc.BUILTIN_INVENTORIES, ...store.inventories]
 const findMachine = (id) => allMachines().find((m) => m.id === id);
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const S = calc.simple;
+const P = calc.presets;
+// Index gear presets: custom machines keep them on the machine, built-ins as an override.
+function getPresets(m) {
+  if (m.builtin) return ((store.builtinOverrides[m.id] || {}).indexPresets) || [];
+  const mm = store.machines.find((x) => x.id === m.id); return (mm && mm.indexPresets) || [];
+}
+function setPresets(m, list) {
+  if (m.builtin) { const o = store.builtinOverrides[m.id] || (store.builtinOverrides[m.id] = { trains: {} }); o.indexPresets = list; }
+  else { const mm = store.machines.find((x) => x.id === m.id); if (mm) mm.indexPresets = list; m.indexPresets = list; }
+  saveStore();
+}
+const zOf = (res) => { try { const v = res.env.get('Z'); return v === undefined ? null : res.num.toJS(v); } catch (e) { return null; } };
 const placeholderGears = () => Array.from({ length: 69 }, (_, i) => ({ teeth: 20 + i, qty: 1 }));
 const newInvId = () => 'inv-' + Math.random().toString(36).slice(2, 8);
 function downloadText(name, text, type) {
@@ -164,6 +165,7 @@ function renderMachine(id) {
           : [h('button', { onclick: () => (location.hash = `#/edit/${m.id}`) }, 'Edit'), h('button', { onclick: () => (location.hash = `#/copy/${m.id}`) }, 'Duplicate'),
             ...['index', 'differential'].filter((k) => S.trainOf(m, k)).map((k) => h('button', { onclick: () => editMachineGears(m, k) }, `Edit ${k} gears`))])),
     h('p', { class: 'muted' }, m.description || ''),
+    manualBar(m),
     m.numeric !== 'gwbasic' ? null : h('div', { class: 'small muted' }, legacyNumeric(m) === 'ieee-single'
       ? 'Arithmetic: QBasic-style single precision (setting on the start page). Switch back to GW-BASIC to match the verified results.'
       : 'Arithmetic: same single-precision GW-BASIC arithmetic as the original program (results match it digit for digit).'));
@@ -193,7 +195,9 @@ function renderMachine(id) {
   form.append(h('div', {}), h('div', { class: 'row' }, h('button', { class: 'primary', type: 'submit' }, 'Calculate'),
     h('button', { type: 'button', onclick: fillEx }, 'Fill blanks with example values')), h('div', {}));
   const out = h('div', {});
-  $main.replaceChildren(head, h('div', { class: 'card' }, h('h3', {}, 'Job details and inputs'), form), out);
+  const hasIndex = (m.trains || []).some((t) => t.kind === 'index' && t.strategy === 'ranked');
+  const presetCard = hasIndex ? presetEditor(m, () => { if (out.childNodes.length) calculate(true); }) : null;
+  $main.replaceChildren(head, h('div', { class: 'card' }, h('h3', {}, 'Job details and inputs'), form), out, presetCard);
 
   function calculate(auto) {
     try { calculateInner(auto); } catch (e) {
@@ -226,7 +230,7 @@ function renderMachine(id) {
     if (card.scrollIntoView && !auto) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     const trainState = [];
     (m.trains || []).forEach((t0, i) => {
-      try { out.append(renderTrain(m, res, i, trainState)); }
+      try { out.append(renderTrain(m, res, i, trainState, () => { calculate(true); if (presetCard) presetCard.refresh(); })); }
       catch (e) { console.error(e); out.append(msg('err', `Gear search failed (${e.message}). The ratio above is still correct.`)); }
     });
   }
@@ -261,7 +265,7 @@ function formatOutput(res, o) {
   return trimNum(res.num.format(v));
 }
 
-function renderTrain(m, res, i, trainState) {
+function renderTrain(m, res, i, trainState, onPresetsChanged) {
   const base = m.trains[i];
   const t = calc.effectiveTrain(base, trainOverride(m, i));
   const card = h('div', { class: 'card' });
@@ -273,7 +277,7 @@ function renderTrain(m, res, i, trainState) {
     h('option', { value: 'legacy-ramgear' }, 'Original program search (first match, then Continue)'),
     h('option', { value: 'ranked' }, 'Best matches from gear inventory (ranked by error)'));
   stratSel.value = t.strategy;
-  const rerender = () => card.replaceWith(renderTrain(m, res, i, trainState));
+  const rerender = () => card.replaceWith(renderTrain(m, res, i, trainState, onPresetsChanged));
   card.append(h('h3', {}, t.label || `${t.kind} gears`));
   if (t.strategy === 'bc-breakdown') {
     card.append(renderBreakdown(m, res, t, st));
@@ -344,18 +348,44 @@ function renderTrain(m, res, i, trainState) {
     const tol = h('input', { type: 'text', style: 'width:110px', value: t.tolerance ? String(t.tolerance * 100) : '', placeholder: 'any', onchange: () => { const v = parseFloat(tol.value); setTrainOverride(m, i, { tolerance: v > 0 ? v / 100 : undefined }); rerender(); } });
     card.append(h('div', { class: 'row small', style: 'margin:6px 0' }, 'Inventory: ', invSel, ' Train: ', gearsSel, ' Max error %: ', tol));
     const tbody = h('tbody');
+    const isIdx = t.kind === 'index';
+    let searchSel = null;
+    const z = isIdx ? zOf(res) : null;
+    if (isIdx && z !== null) {
+      const presets = P.presetsFor(getPresets(m), z);
+      const Rt = res.num.toJS(R);
+      if (presets.length) {
+        body.append(h('table', { class: 'preset-results' }, h('thead', {}, h('tr', {}, ['', 'A', 'B', 'C', 'D', 'Train ratio', 'Error', 'Note'].map((x) => h('th', { class: 'num' }, x)))),
+          h('tbody', {}, presets.map((p) => h('tr', { class: 'preset-row' }, h('td', {}, h('span', { class: 'badge preset' }, 'Preset')), h('td', { class: 'num' }, p.A), h('td', { class: 'num' }, p.B), h('td', { class: 'num' }, p.C ?? ''), h('td', { class: 'num' }, p.D ?? ''),
+            h('td', { class: 'num' }, P.presetRatio(p).toFixed(8)), h('td', { class: 'num' }, fmtPct(P.presetError(p, Rt))), h('td', { class: 'small' }, p.note || ''))))),
+          h('div', { class: 'small muted', style: 'margin-bottom:8px' }, `Saved preset(s) for z = ${z}. Searched matches from the gear list are below.`));
+        st.selected = { ...presets[0], ratio: P.presetRatio(presets[0]), err: P.presetError(presets[0], Rt) };
+      }
+      const inv = allInventories().find((v) => v.id === t.inventory);
+      const hint = P.primeHint(z, inv ? inv.gears : [], getPresets(m));
+      if (hint) body.append(msg('warn prime-hint', hint));
+    }
     try {
       const r = calc.runTrain(res, t, allInventories());
       st.matches = r.list;
       r.list.forEach((v, k) => {
         const tr = h('tr', { class: 'clickable', onclick: () => { tbody.querySelectorAll('tr').forEach((x) => x.classList.remove('sel')); tr.classList.add('sel'); st.selected = v; } },
           h('td', { class: 'num' }, k + 1), h('td', { class: 'num' }, v.A), h('td', { class: 'num' }, v.B), h('td', { class: 'num' }, v.C ?? ''), h('td', { class: 'num' }, v.D ?? ''),
-          h('td', { class: 'num' }, v.ratio.toFixed(8)), h('td', { class: 'num' }, fmtPct(v.err)));
+          h('td', { class: 'num' }, v.ratio.toFixed(8)), h('td', { class: 'num' }, fmtPct(v.err)),
+          (isIdx && z !== null) ? h('td', {}, h('button', { class: 'small save-row-preset', title: `Save as preset for z = ${z}`, onclick: (ev) => {
+            ev.stopPropagation(); setPresets(m, P.upsertPreset(getPresets(m), P.presetFromMatch(z, v))); if (onPresetsChanged) onPresetsChanged();
+          } }, 'Save as preset')) : null);
         tbody.append(tr);
-        if (k === 0) { tr.classList.add('sel'); st.selected = v; }
+        if (k === 0) { tr.classList.add('sel'); if (!st.selected) st.selected = v; searchSel = v; }
+        tr.addEventListener('click', () => { searchSel = v; });
       });
-      body.append(r.list.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Rank', 'A', 'B', 'C', 'D', 'Train ratio', 'Error'].map((x) => h('th', { class: 'num' }, x)))), tbody) : msg('warn', 'No combination within the tolerance.'),
-        h('div', { class: 'small muted' }, 'Drivers A, C / driven B, D. Swapping A with C (or B with D) gives the same ratio and is listed once. Gear quantities in the inventory are respected.'));
+      body.append(r.list.length ? h('table', {}, h('thead', {}, h('tr', {}, [...['Rank', 'A', 'B', 'C', 'D', 'Train ratio', 'Error'], ...(isIdx && z !== null ? [''] : [])].map((x) => h('th', { class: 'num' }, x)))), tbody) : msg('warn', 'No combination within the tolerance.'),
+        h('div', { class: 'small muted' }, 'Drivers A, C / driven B, D. Swapping A with C (or B with D) gives the same ratio and is listed once. Gear quantities in the inventory are respected.'),
+        (isIdx && z !== null && r.list.length) ? h('div', { class: 'row', style: 'margin-top:6px' }, h('button', { class: 'blue', id: 'save-preset', onclick: () => {
+          if (!searchSel) return;
+          setPresets(m, P.upsertPreset(getPresets(m), P.presetFromMatch(z, searchSel)));
+          if (onPresetsChanged) onPresetsChanged();
+        } }, `Save selected match as preset for z = ${z}`)) : null);
     } catch (e) { body.append(msg('err', e.message)); }
   }
   card.append(body);
@@ -619,7 +649,11 @@ function renderEditor({ id, copyOf, readOnly }) {
       if (!confirm(`Delete "${draft.name}" from this browser? (Export first if you want a backup.)`)) return;
       const own = Object.values(draft.ownInventories || {}).filter((iid) => store.inventories.some((x) => x.id === iid));
       if (own.length && confirm(`Also delete its gear lists (${own.map((iid) => store.inventories.find((x) => x.id === iid).name).join(', ')})?\nOK = delete them too, Cancel = keep them.`)) store.inventories = store.inventories.filter((x) => !own.includes(x.id));
-      store.machines = store.machines.filter((m) => m.id !== draft.id); saveStore(); location.hash = '#/';
+      store.machines = store.machines.filter((m) => m.id !== draft.id); saveStore();
+      const delId = draft.id;
+      dataStore.getManual(delId).then((rec) => {
+        if (rec && confirm(`This machine has a manual attached (${rec.name}). Delete the manual too?\nOK = delete it, Cancel = keep it in this browser.`)) return dataStore.deleteManual(delId);
+      }).catch(() => {}).finally(() => { location.hash = '#/'; });
     } }, 'Delete machine') : null);
   $main.replaceChildren(
     h('div', { class: 'card' }, h('h2', {}, ro ? `Formulas of ${draft.name}` : (isNew ? 'Add a machine' : `Edit ${draft.name}`), ro ? h('span', { class: 'badge builtin' }, 'read-only') : null),
@@ -751,6 +785,8 @@ function copyInv(inv) {
 // ------------------------------------------------------------------ import / export
 function renderIO() {
   const result = h('div', {});
+  const inclMan = h('input', { type: 'checkbox', id: 'incl-manuals' });
+  const expMsg = h('div', {});
   const file = h('input', { type: 'file', accept: '.json,application/json' });
   const mode = h('select', {}, h('option', { value: 'merge' }, 'Add / update (keep my other machines)'), h('option', { value: 'replace' }, 'Replace all my machines and inventories'));
   file.addEventListener('change', async () => {
@@ -760,22 +796,28 @@ function renderIO() {
     const p = calc.parseBundle(await f.text());
     if (p.errors.length) result.append(msg(p.ok ? 'warn' : 'err', h('ul', {}, p.errors.map((e) => h('li', {}, e)))));
     if (!p.machines && !p.inventories) return;
-    const n = `${p.machines.length} machine(s), ${p.inventories.length} inventory(ies), ${Object.keys(p.builtinOverrides).length} built-in setting(s)`;
-    result.append(h('p', {}, `Found ${n}.`), h('button', { class: 'primary', onclick: () => {
+    const nMan = Object.keys(p.manuals || {}).length;
+    const n = `${p.machines.length} machine(s), ${p.inventories.length} inventory(ies), ${Object.keys(p.builtinOverrides).length} built-in setting(s)${nMan ? `, ${nMan} manual(s)` : ''}`;
+    result.append(h('p', {}, `Found ${n}.`), h('button', { class: 'primary', id: 'import-now', onclick: async () => {
       if (mode.value === 'replace') { store.machines = []; store.inventories = []; store.builtinOverrides = {}; }
       const up = (arr, items) => items.forEach((x) => { const k = arr.findIndex((y) => y.id === x.id); if (k >= 0) arr[k] = x; else arr.push(x); });
       up(store.machines, p.machines); up(store.inventories, p.inventories);
       Object.assign(store.builtinOverrides, p.builtinOverrides);
-      saveStore(); renderNav(); result.replaceChildren(msg('ok', `Imported ${n}.`));
+      saveStore(); renderNav();
+      let manMsg = '';
+      if (nMan) { try { await dataStore.importManuals(p.manuals); } catch (e) { manMsg = ` Manuals could not be restored: ${e.message}.`; } }
+      result.replaceChildren(msg(manMsg ? 'warn' : 'ok', `Imported ${n}.${manMsg}`));
     } }, 'Import now'));
   });
   $main.replaceChildren(h('div', { class: 'card' }, h('h2', {}, 'Import / export'),
     h('p', {}, 'Your machines, gear inventories and gear-search settings for the original programs are saved in this browser. Export them to a file for backup or to move them to another PC.'),
-    h('button', { class: 'primary', onclick: () => {
-      const bundle = calc.makeBundle({ machines: store.machines, inventories: store.inventories, builtinOverrides: store.builtinOverrides });
-      const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' })), download: `ramgear-machines-${new Date().toISOString().slice(0, 10)}.json` });
-      document.body.append(a); a.click(); a.remove();
-    } }, 'Export to file'),
+    h('div', { class: 'row' }, h('button', { class: 'primary', id: 'export-json', onclick: async () => {
+      let man;
+      expMsg.replaceChildren();
+      if (inclMan.checked) { try { man = await dataStore.exportManuals(); } catch (e) { expMsg.append(msg('warn', `Manuals left out: ${e.message}`)); } }
+      const bundle = calc.makeBundle({ machines: store.machines, inventories: store.inventories, builtinOverrides: store.builtinOverrides, manuals: man });
+      downloadText(`ramgear-machines-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(bundle, null, 2), 'application/json');
+    } }, 'Export to file'), h('label', {}, inclMan, ' Include manuals (larger file)')), expMsg,
     h('h3', { style: 'margin-top:18px' }, 'Import from file'), h('div', { class: 'row' }, file, mode), result));
 }
 
@@ -802,6 +844,92 @@ function renderHelp() {
 <p>A formula may use inputs, constants and other formulas (in any order). The app checks for typing errors, unknown names and formulas that depend on themselves before you can save.</p>
 <p>Example differential formula: <code>RDIFF = KDIFF * SIND(HELIX) / (MN * STARTS)</code></p>
 <p>Arithmetic setting: <b>Old BASIC single precision</b> reproduces the original program digit for digit (7 significant digits). <b>Normal</b> uses full double precision.</p>` }));
+}
+
+// ------------------------------------------------------------------ manual PDF (IndexedDB)
+function manualBar(m) {
+  const bar = h('div', { class: 'row manual-bar', id: 'manual-bar' });
+  const file = h('input', { type: 'file', accept: '.pdf,application/pdf', style: 'display:none', id: 'manual-file' });
+  const note = h('span', { class: 'small muted', id: 'manual-status' });
+  const draw = (rec, err) => {
+    bar.replaceChildren(h('b', {}, 'Manual: '), file,
+      h('button', { id: 'manual-attach', onclick: () => file.click(), disabled: err ? true : undefined }, rec ? 'Replace manual (PDF)' : 'Attach manual (PDF)'),
+      rec ? h('button', { id: 'manual-open', onclick: () => openManual(m) }, 'Open manual') : null,
+      rec ? h('button', { id: 'manual-remove', onclick: async () => { if (!confirm(`Remove the manual "${rec.name}" from this browser?`)) return; await dataStore.deleteManual(m.id); draw(null); } }, 'Remove') : null,
+      note);
+    note.className = err ? 'small err-text' : 'small muted';
+    note.textContent = err ? `Manuals can't be stored in this browser: ${err}. Calculations still work.` : rec ? `${rec.name} (${Math.max(1, Math.round(rec.size / 1024))} KB) - kept in this browser only, not on the website.` : 'Kept in this browser only, never uploaded.';
+  };
+  file.addEventListener('change', async () => {
+    const f = file.files[0]; file.value = '';
+    if (!f) return;
+    if (!dataStore.looksLikePdf(f)) { alert('Please pick a PDF file.'); return; }
+    try { await dataStore.putManual(m.id, f, f.name); draw(await dataStore.getManual(m.id)); }
+    catch (e) { draw(null, (e && e.message) || String(e)); }
+  });
+  if (!dataStore.manualsAvailable()) draw(null, 'IndexedDB is not available (private window or blocked site data)');
+  else { draw(null); dataStore.getManual(m.id).then((r) => draw(r || null)).catch((e) => draw(null, (e && e.message) || String(e))); }
+  return bar;
+}
+async function openManual(m) {
+  const w = window.open('', '_blank');
+  try {
+    const rec = await dataStore.getManual(m.id);
+    if (!rec) throw new Error('no manual attached');
+    const url = URL.createObjectURL(rec.blob.type ? rec.blob : new Blob([rec.blob], { type: 'application/pdf' }));
+    if (w) w.location.href = url; else window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+  } catch (e) { if (w) w.close(); alert('Could not open the manual: ' + ((e && e.message) || e)); }
+}
+
+// ------------------------------------------------------------------ index gear presets editor
+function presetEditor(m, onChange) {
+  const card = h('div', { class: 'card', id: 'preset-editor' });
+  let rows;
+  const info = h('div', {});
+  const csvPreview = h('div', {});
+  const file = h('input', { type: 'file', accept: '.csv,.txt,text/csv', style: 'display:none', id: 'preset-csv-file' });
+  file.addEventListener('change', async () => { const f = file.files[0]; if (f) showCsv(await f.text(), f.name); file.value = ''; });
+  const commit = () => {
+    const errs = [], list = [];
+    rows.forEach((r, k) => { const c = P.cleanPreset(r); if (c.errors.length) errs.push(`row ${k + 1}: ${c.errors.join('; ')}`); else list.push(c.preset); });
+    if (errs.length) { info.replaceChildren(msg('err', errs.join(' | '))); return false; }
+    setPresets(m, list.sort((a, b) => a.z - b.z)); rows = clone(list);
+    if (onChange) onChange();
+    info.replaceChildren(msg('ok', `Saved ${list.length} preset(s).`));
+    return true;
+  };
+  const showCsv = (text, fname) => {
+    const p = P.parsePresetCsv(text);
+    csvPreview.replaceChildren(h('div', { class: 'card', id: 'preset-csv-preview' }, h('h3', {}, `Preset import preview: ${fname}`),
+      h('p', { class: 'small' }, `${p.rows.length} good row(s)${p.header ? ', header row found' : ''}.`),
+      p.bad.length ? msg('warn', h('b', {}, `${p.bad.length} row(s) will be skipped:`), h('ul', {}, p.bad.map((b) => h('li', {}, `line ${b.line}: ${b.reason}`)))) : null,
+      h('div', { class: 'row' },
+        h('button', { class: 'primary', disabled: !p.rows.length || undefined, onclick: () => { rows = p.rows.map(({ line, ...x }) => x); csvPreview.replaceChildren(); commit(); draw(); } }, 'Replace presets with these'),
+        h('button', { class: 'blue', disabled: !p.rows.length || undefined, onclick: () => { let l = getPresets(m); p.rows.forEach(({ line, ...x }) => { l = P.upsertPreset(l, x); }); rows = clone(l); csvPreview.replaceChildren(); commit(); draw(); } }, 'Add to presets'),
+        h('button', { onclick: () => csvPreview.replaceChildren() }, 'Cancel'))));
+  };
+  const cell = (r, key, w) => { const el = h('input', { type: 'text', value: r[key] === undefined ? '' : String(r[key]), class: `preset-${key}`, style: `width:${w}px`, inputmode: key === 'note' ? undefined : 'numeric' }); el.addEventListener('input', () => { r[key] = el.value; }); return el; };
+  const draw = () => {
+    const keepInfo = [...info.childNodes];
+    card.replaceChildren(h('h3', {}, 'Index gear presets'),
+      h('p', { class: 'small muted' }, 'Saved index gear sets for a tooth count z. When the part\'s z matches, the set is shown first, marked Preset. Gears do not have to be in the gear list - for a prime z like 101 you need a 101-tooth gear. Leave C and D empty for a 2-gear A/B set.'),
+      h('table', { class: 'tbl-edit', id: 'preset-table' }, h('thead', {}, h('tr', {}, ['z', 'A', 'B', 'C', 'D', 'Note', ''].map((x) => h('th', {}, x)))),
+        h('tbody', {}, rows.map((r, k) => h('tr', {}, h('td', {}, cell(r, 'z', 60)), h('td', {}, cell(r, 'A', 55)), h('td', {}, cell(r, 'B', 55)), h('td', {}, cell(r, 'C', 55)), h('td', {}, cell(r, 'D', 55)), h('td', {}, cell(r, 'note', 220)),
+          h('td', {}, h('button', { class: 'x', title: 'Delete preset', onclick: () => { rows.splice(k, 1); commit(); draw(); } }, '×')))))),
+      h('div', { class: 'row', style: 'margin:6px 0' },
+        h('button', { id: 'preset-add', onclick: () => { rows.push({ z: '', A: '', B: '', C: '', D: '', note: '' }); draw(); const l = card.querySelector('#preset-table tbody tr:last-child input'); if (l) l.focus(); } }, '+ Add preset'),
+        h('button', { class: 'primary', id: 'preset-save', onclick: () => { if (commit()) draw(); } }, 'Save presets'),
+        file, h('button', { onclick: () => file.click() }, 'Import CSV'),
+        h('button', { onclick: () => downloadText(`${m.name.replace(/[^\w -]+/g, '')} index presets.csv`, P.presetsToCsv(getPresets(m)), 'text/csv') }, 'Export CSV'),
+        h('span', { class: 'small muted' }, 'CSV columns: z, A, B, C, D, note')),
+      csvPreview, info);
+    info.replaceChildren(...keepInfo);
+  };
+  card.refresh = () => { rows = clone(getPresets(m)); draw(); };
+  window.__rgShowPresetCsv = (t, n) => showCsv(t, n); // used by the browser test
+  card.refresh();
+  return card;
 }
 
 route();

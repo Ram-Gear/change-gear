@@ -1,6 +1,7 @@
 import { simpleTemplate } from './simple.js';
 export * as simple from './simple.js';
 export * as gearcsv from './gearcsv.js';
+export * as presets from './presets.js';
 // calc.js - pure calculation API (no DOM). Usable from the browser and from Node:
 //   import * as calc from './js/calc.js'
 export * as mbf from './mbf.js';
@@ -11,6 +12,7 @@ export { BUILTIN_MACHINES, BUILTIN_INVENTORIES } from './machines.js';
 
 import { compileMachine, evaluateMachine } from './formula.js';
 import { legacyRamgear, rankedSearch, bcBreakdown } from './search.js';
+import { cleanPreset } from './presets.js';
 import { BUILTIN_MACHINES, BUILTIN_INVENTORIES, REMOVED_BUILTIN_IDS } from './machines.js';
 export { REMOVED_BUILTIN_IDS };
 
@@ -68,13 +70,24 @@ export function runTrain(result, train, inventories = BUILTIN_INVENTORIES, opts 
 }
 
 // ------------------------------------------------------------ import / export
-export function makeBundle({ machines = [], builtinOverrides = {}, inventories = [] }) {
-  return {
+export function makeBundle({ machines = [], builtinOverrides = {}, inventories = [], manuals }) {
+  const b = {
     format: BUNDLE_FORMAT, version: BUNDLE_VERSION, exportedAt: new Date().toISOString(),
     machines: machines.filter((m) => !m.builtin),
     builtinOverrides,
     inventories: inventories.filter((i) => !i.builtin),
   };
+  if (manuals && Object.keys(manuals).length) b.manuals = manuals; // base64 PDFs, only when asked for
+  return b;
+}
+
+// Validate a list of index gear presets; returns { presets, errors }
+export function cleanPresets(list, where) {
+  const presets = [], errors = [];
+  if (list === undefined) return { presets: undefined, errors };
+  if (!Array.isArray(list)) return { presets: [], errors: [`${where}: index presets must be a list`] };
+  list.forEach((p, i) => { const c = cleanPreset(p || {}); if (c.errors.length) errors.push(`${where}: preset ${i + 1} skipped (${c.errors.join('; ')})`); else presets.push(c.preset); });
+  return { presets, errors };
 }
 
 export function validateInventory(inv) {
@@ -103,7 +116,10 @@ export function parseBundle(json) {
     const c = compileMachine(m);
     if (!m.id) errors.push(`Machine "${m.name}": missing id`);
     else if (!c.ok) errors.push(...c.errors.map((e) => `Machine "${m.name}": ${e.where}: ${e.msg}`));
-    else machines.push({ ...m, builtin: false });
+    else {
+      const cp = cleanPresets(m.indexPresets, `Machine "${m.name}"`); errors.push(...cp.errors);
+      machines.push(cp.presets ? { ...m, builtin: false, indexPresets: cp.presets } : { ...m, builtin: false });
+    }
   }
   for (const inv of data.inventories || []) {
     const e = validateInventory(inv);
@@ -115,9 +131,15 @@ export function parseBundle(json) {
   for (const [id, ov] of Object.entries(data.builtinOverrides || {})) {
     if (REMOVED_BUILTIN_IDS.includes(id)) continue; // settings for a removed original program: silently dropped
     if (!BUILTIN_MACHINES.some((b) => b.id === id)) { errors.push(`Override for unknown built-in "${id}" ignored`); continue; }
-    builtinOverrides[id] = ov;
+    const cp = cleanPresets(ov && ov.indexPresets, `Built-in "${id}"`); errors.push(...cp.errors);
+    builtinOverrides[id] = cp.presets ? { ...ov, indexPresets: cp.presets } : ov;
   }
-  return { ok: errors.length === 0, errors, machines, inventories, builtinOverrides };
+  const manuals = {};
+  for (const [id, r] of Object.entries(data.manuals || {})) {
+    if (!r || typeof r.data !== 'string' || !/^[A-Za-z0-9+/=\s]*$/.test(r.data)) { errors.push(`Manual for "${id}" is damaged and was skipped`); continue; }
+    manuals[id] = { name: String(r.name || 'manual.pdf'), type: String(r.type || 'application/pdf'), size: r.size, data: r.data.replace(/\s+/g, '') };
+  }
+  return { ok: errors.length === 0, errors, machines, inventories, builtinOverrides, manuals };
 }
 
 // A fresh custom machine skeleton
