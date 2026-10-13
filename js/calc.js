@@ -1,3 +1,6 @@
+import { simpleTemplate } from './simple.js';
+export * as simple from './simple.js';
+export * as gearcsv from './gearcsv.js';
 // calc.js - pure calculation API (no DOM). Usable from the browser and from Node:
 //   import * as calc from './js/calc.js'
 export * as mbf from './mbf.js';
@@ -118,20 +121,4 @@ export function parseBundle(json) {
 }
 
 // A fresh custom machine skeleton
-export function newMachineTemplate() {
-  return {
-    id: 'custom-' + Math.random().toString(36).slice(2, 9),
-    name: 'New machine', builtin: false, numeric: 'float64',
-    description: '',
-    inputs: [
-      { name: 'HELIX', label: 'Helix angle', unit: 'degrees', example: '20' },
-      { name: 'MN', label: 'Normal module', unit: 'mm', example: '3' },
-      { name: 'STARTS', label: 'Hob starts', unit: 'starts', example: '1' },
-    ],
-    constants: [{ name: 'KDIFF', expr: '7.95775', label: 'Differential constant (example only - use your machine plate value)' }],
-    formulas: [{ name: 'RDIFF', expr: 'KDIFF * SIND(HELIX) / (MN * STARTS)', label: 'Differential ratio' }],
-    outputs: [{ name: 'RDIFF', label: 'Differential ratio needed', format: 'fixed:6' }],
-    report: [],
-    trains: [{ kind: 'differential', label: 'Differential change gears', ratio: 'RDIFF', strategy: 'ranked', inventory: 'legacy-20-88', gears: 4, maxResults: 20 }],
-  };
-}
+export function newMachineTemplate() { return simpleTemplate(); }

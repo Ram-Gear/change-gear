@@ -78,3 +78,7 @@ input::placeholder { color: #b0b0b0; font-style: italic; }
 input.invalid { border-color: #c0392b !important; background: #fff1f0; box-shadow: 0 0 0 2px rgba(192,57,43,.25); }
 
 .version-stamp { margin-left: 12px; font-size: 11px; font-weight: normal; opacity: .75; }
+.msg.info { background:#e8f0fb; color:#1d3d6b; border:1px solid #b9cdeb; }
+.simple-sec h3 { margin-top:0; }
+code.formula-show { font-family:ui-monospace,Consolas,monospace; background:#f3f4f6; padding:4px 6px; border-radius:4px; align-self:center; }
+details.advanced > summary { cursor:pointer; font-weight:600; padding:10px 4px; }

@@ -64,7 +64,7 @@ with sync_playwright() as p:
     if 'Index ratio = 24 × hob starts ÷ z' not in pg.content(): fails.append('index formula label missing')
     pg.goto(URL + '#/new'); pg.wait_for_selector('.msg.ok')
     pg.click('button:has-text("Save machine")'); pg.wait_for_selector('form.grid-form')
-    for k, v in {'HELIX': '20', 'MN': '3', 'STARTS': '1'}.items(): pg.fill('#in-' + k, v)
+    for k, v in {'Z': '40', 'K': '1', 'B': '20', 'D': '3'}.items(): pg.fill('#in-' + k, v)
     pg.click('button:has-text("Calculate")'); r = ratio_shown(pg); print('custom', r)
     if not r: fails.append('custom: no ratio')
     v = pg.locator('#app-version').inner_text(); print('version', v)

@@ -42,14 +42,15 @@ with sync_playwright() as p:
     pg.wait_for_selector('.msg.ok')
     if SHOTS: pg.screenshot(path=f'{SHOTS}/editor.png', full_page=True)
     pg.click('button:has-text("Save machine")'); pg.wait_for_selector('form.grid-form')
-    for k, v in {'HELIX': '20', 'MN': '3', 'STARTS': '1'}.items(): pg.fill('#in-' + k, v)
+    for k, v in {'Z': '40', 'K': '1', 'B': '20', 'D': '3'}.items(): pg.fill('#in-' + k, v)
     pg.click('button:has-text("Calculate")'); pg.wait_for_selector('tbody tr')
     results['custom'] = {'outputs': pg.locator('.results-table td.big').all_inner_texts(), 'best': pg.locator('tbody tr').first.inner_text().replace('\t', ' ')}
     if SHOTS: pg.screenshot(path=f'{SHOTS}/custom.png', full_page=True)
     # editor validation: circular reference must block saving
     pg.goto(URL + '#/new'); pg.wait_for_selector('.msg.ok')
+    pg.click('details.advanced > summary')
     f = pg.locator('table.tbl-edit').nth(2).locator('input').nth(1)
-    f.fill('RDIFF * 2'); pg.wait_for_selector('.msg.err')
+    f.fill('RIDX * 2'); pg.wait_for_selector('.msg.err')
     results['circular'] = {'error': pg.locator('.msg.err').inner_text()[:200], 'saveDisabled': pg.locator('button:has-text("Save machine")').is_disabled()}
     for page in ['#/inventories', '#/io', '#/help', '#/view/fd500-diff']:
         pg.goto(URL + page); pg.wait_for_timeout(300)

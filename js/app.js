@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 const STORE_KEY = 'ramgear.changegear.v1';
-export const APP_VERSION = 'RAM-GEAR web v1.4 (2026-10-13)';
+export const APP_VERSION = 'RAM-GEAR web v1.5 (2026-10-13)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 let storageProblem = null;
@@ -45,6 +45,13 @@ const allMachines = () => [...calc.BUILTIN_MACHINES, ...store.machines];
 const allInventories = () => [...calc.BUILTIN_INVENTORIES, ...store.inventories];
 const findMachine = (id) => allMachines().find((m) => m.id === id);
 const clone = (o) => JSON.parse(JSON.stringify(o));
+const S = calc.simple;
+const placeholderGears = () => Array.from({ length: 69 }, (_, i) => ({ teeth: 20 + i, qty: 1 }));
+const newInvId = () => 'inv-' + Math.random().toString(36).slice(2, 8);
+function downloadText(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type })), download: name });
+  document.body.append(a); a.click(); a.remove();
+}
 
 // ------------------------------------------------------------------ DOM helper
 function h(tag, attrs, ...kids) {
@@ -154,7 +161,8 @@ function renderMachine(id) {
       h('h2', {}, m.builtin ? `(${m.menu}) ` : '', m.name, m.builtin ? h('span', { class: 'badge builtin' }, 'original program') : h('span', { class: 'badge' }, 'my machine')),
       h('div', { class: 'row' },
         m.builtin ? [h('button', { onclick: () => (location.hash = `#/view/${m.id}`) }, 'View formulas'), h('button', { onclick: () => (location.hash = `#/copy/${m.id}`) }, 'Copy to edit')]
-          : [h('button', { onclick: () => (location.hash = `#/edit/${m.id}`) }, 'Edit'), h('button', { onclick: () => (location.hash = `#/copy/${m.id}`) }, 'Duplicate')])),
+          : [h('button', { onclick: () => (location.hash = `#/edit/${m.id}`) }, 'Edit'), h('button', { onclick: () => (location.hash = `#/copy/${m.id}`) }, 'Duplicate'),
+            ...['index', 'differential'].filter((k) => S.trainOf(m, k)).map((k) => h('button', { onclick: () => editMachineGears(m, k) }, `Edit ${k} gears`))])),
     h('p', { class: 'muted' }, m.description || ''),
     m.numeric !== 'gwbasic' ? null : h('div', { class: 'small muted' }, legacyNumeric(m) === 'ieee-single'
       ? 'Arithmetic: QBasic-style single precision (setting on the start page). Switch back to GW-BASIC to match the verified results.'
@@ -223,6 +231,22 @@ function renderMachine(id) {
     });
   }
   if (Object.keys(last).length) calculate(true);
+}
+
+// Open the machine's own gear list for a train; if the train still points at a built-in list,
+// make the machine its own copy first and link it.
+function editMachineGears(m, kind) {
+  const mm = store.machines.find((x) => x.id === m.id); if (!mm) return;
+  const t = S.trainOf(mm, kind);
+  let inv = store.inventories.find((x) => x.id === t.inventory);
+  if (!inv) {
+    const src = allInventories().find((x) => x.id === t.inventory);
+    inv = { id: newInvId(), name: S.ownInventoryName(mm.name, kind), gears: src ? clone(src.gears) : placeholderGears() };
+    store.inventories.push(inv); t.inventory = inv.id;
+    mm.ownInventories = { ...(mm.ownInventories || {}), [kind]: inv.id };
+    saveStore();
+  }
+  location.hash = `#/inventories/${inv.id}`;
 }
 
 function legacyNumeric(m) {
@@ -409,7 +433,7 @@ function renderEditor({ id, copyOf, readOnly }) {
     const m = findMachine(id);
     if (!m) { $main.replaceChildren(msg('err', 'Machine not found')); return; }
     draft = clone(m);
-    if (m.builtin) readOnly = true;
+    if (m.builtin) readOnly = true; else S.normalizeIndex(draft);
   } else if (copyOf) {
     const m = findMachine(copyOf);
     draft = clone(m);
@@ -418,6 +442,9 @@ function renderEditor({ id, copyOf, readOnly }) {
     draft.builtin = false;
     delete draft.menu;
     if (m.builtin) draft.description = `Copied from original program (${m.menu}). ${m.description}`;
+    delete draft.ownInventories;
+    S.normalizeIndex(draft);
+    for (const t of draft.trains || []) if (t.kind === 'index' || t.kind === 'differential') t.inventory = S.OWN_INV;
     isNew = true;
   } else {
     draft = calc.newMachineTemplate();
@@ -427,6 +454,9 @@ function renderEditor({ id, copyOf, readOnly }) {
   const status = h('div', {});
   const preview = h('div', {});
   const sections = h('div', {});
+  let advancedOpen = !!readOnly;
+  const advanced = h('details', { class: 'advanced' });
+  advanced.addEventListener('toggle', () => { advancedOpen = advanced.open; });
   const jsonBox = h('textarea', { rows: 18, readonly: ro || undefined });
 
   const inputEl = (obj, key, attrs = {}) => {
@@ -447,12 +477,37 @@ function renderEditor({ id, copyOf, readOnly }) {
     draft.inputs = draft.inputs || []; draft.constants = draft.constants || []; draft.formulas = draft.formulas || [];
     draft.outputs = draft.outputs || []; draft.trains = draft.trains || []; draft.report = draft.report || [];
     const invOpts = allInventories().map((v) => [v.id, v.name]);
-    sections.replaceChildren(
-      h('div', { class: 'card' }, h('h3', {}, 'Machine'),
+    const ownOpt = [S.OWN_INV, `${S.ownInventoryName(draft.name, '…')} - this machine's own list (made on save, 20-88 to start)`];
+    const simpleSection = (kind) => {
+      const title = kind === 'index' ? 'Index' : 'Differential';
+      const info = S.sectionInfo(draft, kind);
+      if (!info) return h('div', { class: 'card simple-sec', id: `simple-${kind}` }, h('h3', {}, `${title} ratio formula`),
+        h('p', { class: 'muted small' }, `This machine has no ${kind} calculation.`),
+        ro ? null : h('button', { class: 'blue', onclick: () => { (kind === 'index' ? S.addIndex : S.addDifferential)(draft); draw(); } }, `+ Add ${kind} ratio`));
+      const t = info.train;
+      const own = (draft.ownInventories || {})[kind];
+      const opts = [own ? [own, `${S.ownInventoryName(draft.name, kind)} (this machine's own list)`] : ownOpt, ...invOpts.filter(([v]) => v !== own)];
+      return h('div', { class: 'card simple-sec', id: `simple-${kind}` }, h('h3', {}, `${title} ratio formula`),
         h('div', { class: 'grid-form' },
-          h('label', {}, 'Name'), inputEl(draft, 'name'), h('div', {}),
+          h('label', {}, `${title} constant`),
+          info.constant ? inputEl(info.constant, 'expr', { id: `const-${kind}`, style: 'max-width:160px' }) : h('span', { class: 'muted small' }, 'written into the formula - see Advanced'),
+          h('div', { class: 'hint' }, info.constant ? (info.constant.label || '') : ''),
+          h('label', {}, 'Formula'), h('code', { class: 'formula-show' }, `${info.formula ? info.formula.name : t.ratio} = ${info.formula ? info.formula.expr : '?'}`),
+          h('div', { class: 'hint' }, kind === 'index' ? 'KIDX = index constant, K = hob starts, Z = number of teeth in gear' : 'KDIFF (or O) = differential constant, B = helix angle, D = module or DP, K = hob starts, Q = inch/metric'),
+          h('label', {}, `${title} gear list`), selectEl(t, 'inventory', opts), h('div', { class: 'hint' }, 'The gear search only uses gears from this list.'),
+          h('label', {}, 'Search'), selectEl(t, 'strategy', [['ranked', 'Best matches from gear list (ranked by error)'], ['legacy-ramgear', 'Original program search (first match, then Continue)']]), h('div', {})),
+        ro ? null : h('button', { onclick: () => { if (confirm(`Remove the ${kind} calculation from this machine?`)) { S.removeSection(draft, kind); draw(); } } }, `Remove ${kind}`));
+    };
+    const simpleCards = [
+      h('div', { class: 'msg info small' }, 'Type each machine constant in its box - the formulas are already built: index ratio = index constant × hob starts (K) ÷ teeth (z), and a Fauter / FD-500 style differential. Each one gets its own gear list and gear search. Remove the one your machine does not need. Change the formulas themselves under "Advanced" at the bottom.'),
+      simpleSection('index'), simpleSection('differential')];
+    const machineCard = h('div', { class: 'card' }, h('h3', {}, 'Machine'),
+        h('div', { class: 'grid-form' },
+          h('label', {}, 'Name'), inputEl(draft, 'name', { id: 'machine-name' }), h('div', { class: 'hint' }, 'Its gear lists are named after it.'),
           h('label', {}, 'Description'), inputEl(draft, 'description'), h('div', {}),
-          h('label', {}, 'Arithmetic'), selectEl(draft, 'numeric', [['float64', 'Normal (double precision) - recommended'], ['gwbasic', 'Old BASIC single precision (exactly like the original program)'], ['ieee-single', 'QBasic-style single precision (approximate)']]), h('div', { class: 'hint' }, 'Copies of the original programs keep "Old BASIC" so they give identical numbers.'))),
+          h('label', {}, 'Arithmetic'), selectEl(draft, 'numeric', [['float64', 'Normal (double precision) - recommended'], ['gwbasic', 'Old BASIC single precision (exactly like the original program)'], ['ieee-single', 'QBasic-style single precision (approximate)']]), h('div', { class: 'hint' }, 'Copies of the original programs keep "Old BASIC" so they give identical numbers.')));
+    sections.replaceChildren(machineCard, ...simpleCards, advanced);
+    advanced.replaceChildren(h('summary', {}, 'Advanced: inputs, constants, formulas, results and gear trains'),
       h('div', { class: 'card' }, h('h3', {}, 'Inputs (what the operator types in)'),
         h('table', { class: 'tbl-edit' }, h('tr', {}, ['Name', 'Label', 'Unit', 'Type', 'Example / default', 'Choices (value=label, one per line)', ''].map((x) => h('th', {}, x))),
           draft.inputs.map((inp, k) => h('tr', {},
@@ -498,6 +553,7 @@ function renderEditor({ id, copyOf, readOnly }) {
       h('div', { class: 'card' }, h('details', {}, h('summary', {}, 'Advanced: edit as JSON'), jsonBox,
         ro ? null : h('button', { onclick: () => { try { const d = JSON.parse(jsonBox.value); d.id = draft.id; d.builtin = false; draft = d; draw(); } catch (e) { alert('Invalid JSON: ' + e.message); } } }, 'Apply JSON'))),
     );
+    advanced.open = advancedOpen;
     validate();
   }
 
@@ -521,11 +577,11 @@ function renderEditor({ id, copyOf, readOnly }) {
       (draft.trains || []).forEach((t) => {
         try {
           if (t.strategy === 'ranked') {
-            const r = calc.runTrain(res, t, allInventories());
+            const r = calc.runTrain(res, t, previewInvs());
             const b = r.list[0];
             preview.append(h('div', { class: 'small' }, `${t.label || t.kind}: best ${b ? `${b.A}/${b.B}${b.C ? ` × ${b.C}/${b.D}` : ''} = ${b.ratio.toFixed(8)} (error ${fmtPct(b.err)})` : 'none'}`));
           } else if (t.strategy === 'legacy-ramgear') {
-            const r = calc.runTrain(res, t, allInventories(), { maxD: 60 });
+            const r = calc.runTrain(res, t, previewInvs(), { maxD: 60 });
             const first = calc.legacyFirstN(r.R, res.num, 1, { maxD: 60 })[0];
             preview.append(h('div', { class: 'small' }, `${t.label || t.kind}: first match ${first ? `A ${first.A} B ${first.B} C ${first.C} D ${first.D} = ${first.ratioText}` : 'none with D ≤ 60'}`));
           }
@@ -534,10 +590,23 @@ function renderEditor({ id, copyOf, readOnly }) {
     }
   }
 
+  const previewInvs = () => [...allInventories(), { id: S.OWN_INV, name: 'own', gears: placeholderGears() }];
   const saveBtn = h('button', { class: 'primary', onclick: () => {
     const c = calc.compileMachine(draft);
     if (!c.ok) return;
     draft.builtin = false;
+    // each machine gets its own index and differential gear lists, named after it
+    draft.ownInventories = { ...(draft.ownInventories || {}) };
+    for (const kind of ['index', 'differential']) {
+      const t = S.trainOf(draft, kind);
+      let inv = store.inventories.find((x) => x.id === draft.ownInventories[kind]);
+      if (t && t.inventory === S.OWN_INV) {
+        if (!inv) { inv = { id: newInvId(), name: '', gears: placeholderGears(), note: 'Placeholder: one of each 20-88. Change it to the gears you really have.' }; store.inventories.push(inv); draft.ownInventories[kind] = inv.id; }
+        t.inventory = inv.id;
+      }
+      if (inv) inv.name = S.ownInventoryName(draft.name, kind);
+      else delete draft.ownInventories[kind];
+    }
     const k = store.machines.findIndex((m) => m.id === draft.id);
     if (k >= 0) store.machines[k] = draft; else store.machines.push(draft);
     saveStore();
@@ -548,11 +617,13 @@ function renderEditor({ id, copyOf, readOnly }) {
     h('button', { onclick: () => history.back() }, ro ? 'Back' : 'Cancel'),
     (!ro && !isNew) ? h('button', { onclick: () => {
       if (!confirm(`Delete "${draft.name}" from this browser? (Export first if you want a backup.)`)) return;
+      const own = Object.values(draft.ownInventories || {}).filter((iid) => store.inventories.some((x) => x.id === iid));
+      if (own.length && confirm(`Also delete its gear lists (${own.map((iid) => store.inventories.find((x) => x.id === iid).name).join(', ')})?\nOK = delete them too, Cancel = keep them.`)) store.inventories = store.inventories.filter((x) => !own.includes(x.id));
       store.machines = store.machines.filter((m) => m.id !== draft.id); saveStore(); location.hash = '#/';
     } }, 'Delete machine') : null);
   $main.replaceChildren(
     h('div', { class: 'card' }, h('h2', {}, ro ? `Formulas of ${draft.name}` : (isNew ? 'Add a machine' : `Edit ${draft.name}`), ro ? h('span', { class: 'badge builtin' }, 'read-only') : null),
-      ro ? h('p', { class: 'muted' }, 'Original programs cannot be changed. Use "Copy to edit" to make your own version.') : h('p', { class: 'muted' }, 'Name the inputs, write the formulas, choose which gear train each ratio drives. The input form and gear search are built automatically.'),
+      ro ? h('p', { class: 'muted' }, 'Original programs cannot be changed. Use "Copy to edit" to make your own version.') : h('p', { class: 'muted' }, 'Give the machine a name and type its index constant and differential constant. The input form, ratios and gear searches are built automatically.'),
       actions),
     h('div', { class: 'flex2' }, h('div', { class: 'editor-main', style: 'flex:3 1 640px' }, sections), h('div', { style: 'flex:1 1 300px' }, h('div', { class: 'card', style: 'position:sticky; top:10px' }, h('h3', {}, 'Check & preview'), status, preview))));
   draw();
@@ -592,24 +663,84 @@ function renderInventories(editId) {
     h('div', { style: 'margin-top:8px' }, h('button', { class: 'primary', onclick: () => { const inv = { id: 'inv-' + Math.random().toString(36).slice(2, 8), name: 'My gear box', gears: [] }; store.inventories.push(inv); saveStore(); location.hash = `#/inventories/${inv.id}`; } }, '+ New inventory')));
   const kids = [list];
   const inv = store.inventories.find((x) => x.id === editId);
-  if (inv) {
-    const name = h('input', { type: 'text', value: inv.name });
-    const ta = h('textarea', { rows: 5 }, gearListText(inv.gears));
-    const info = h('div', {});
-    const check = () => {
-      const p = parseGearList(ta.value);
-      info.replaceChildren(p.errs.length ? msg('err', p.errs.join('; ')) : msg('ok', `${p.gears.length} different tooth counts, ${p.gears.reduce((s, g) => s + g.qty, 0)} gears in total.`));
-      return p;
-    };
-    ta.addEventListener('input', check);
-    kids.push(h('div', { class: 'card' }, h('h3', {}, 'Edit inventory'),
-      h('div', { class: 'grid-form' }, h('label', {}, 'Name'), name, h('div', {}), h('label', {}, 'Gears'), ta, h('div', { class: 'hint' }, 'Write tooth counts separated by commas. "20-88" = every count from 20 to 88; "x2" = you have two of them. Example: 20-60 x2, 64, 72, 80, 100 x1')),
-      info,
-      h('div', { class: 'row' }, h('button', { class: 'primary', onclick: () => { const p = check(); if (p.errs.length) return; inv.name = name.value || 'Unnamed'; inv.gears = p.gears; saveStore(); location.hash = '#/inventories'; } }, 'Save'),
-        h('button', { onclick: () => { if (confirm(`Delete inventory "${inv.name}"?`)) { store.inventories = store.inventories.filter((x) => x !== inv); saveStore(); location.hash = '#/inventories'; } } }, 'Delete'))));
-    setTimeout(check);
-  }
+  if (inv) kids.unshift(inventoryEditor(inv));
   $main.replaceChildren(...kids);
+}
+// Per-gear table editor: tooth count, quantity, note; quick entry; CSV import / export.
+function inventoryEditor(inv) {
+  const G = calc.gearcsv;
+  let rows = clone(inv.gears || []).map((g) => ({ teeth: g.teeth, qty: g.qty === undefined ? 1 : g.qty, note: g.note || '' }));
+  const name = h('input', { type: 'text', id: 'inv-name', value: inv.name });
+  const tbody = h('tbody');
+  const info = h('div', {});
+  const csvPreview = h('div', {});
+  const check = () => {
+    const errs = [];
+    rows.forEach((r, k) => {
+      if (!/^\d+$/.test(String(r.teeth).trim()) || Number(r.teeth) <= 0) errs.push(`row ${k + 1}: tooth count must be a whole number above 0`);
+      if (!/^\d+$/.test(String(r.qty).trim())) errs.push(`row ${k + 1}: quantity must be a whole number`);
+    });
+    info.replaceChildren(errs.length ? msg('err', errs.join('; ')) : msg('ok', `${rows.length} rows, ${rows.reduce((s, g) => s + Number(g.qty || 0), 0)} gears in total.`));
+    return errs;
+  };
+  const drawRows = () => {
+    tbody.replaceChildren(...rows.map((r, k) => {
+      const cell = (key, attrs) => { const el = h('input', { type: 'text', value: String(r[key]), ...attrs }); el.addEventListener('input', () => { r[key] = el.value; check(); }); return el; };
+      return h('tr', {}, h('td', {}, cell('teeth', { class: 'gear-teeth', style: 'width:80px', inputmode: 'numeric' })), h('td', {}, cell('qty', { class: 'gear-qty', style: 'width:60px', inputmode: 'numeric' })),
+        h('td', {}, cell('note', { class: 'gear-note' })), h('td', {}, h('button', { class: 'x', title: 'Remove this gear', onclick: () => { rows.splice(k, 1); drawRows(); } }, '×')));
+    }));
+    check();
+  };
+  const quick = h('input', { type: 'text', id: 'quick-gears', placeholder: 'e.g. 20, 24, 30, 36  or  40-48  or  30 x2', style: 'max-width:340px' });
+  const quickAdd = () => {
+    const p = parseGearList(quick.value);
+    if (p.errs.length) { info.replaceChildren(msg('err', p.errs.join('; '))); return; }
+    rows = G.mergeGears(rows.map((r) => ({ ...r, teeth: Number(r.teeth), qty: Number(r.qty) })), p.gears).map((g) => ({ ...g, note: g.note || '' }));
+    quick.value = ''; drawRows();
+  };
+  quick.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); quickAdd(); } });
+  const file = h('input', { type: 'file', accept: '.csv,.txt,text/csv', style: 'display:none', id: 'csv-file' });
+  file.addEventListener('change', async () => { const f = file.files[0]; if (f) showCsv(await f.text(), f.name); file.value = ''; });
+  const showCsv = (text, fname) => {
+    const p = G.parseGearCsv(text);
+    csvPreview.replaceChildren(h('div', { class: 'card', id: 'csv-preview' }, h('h3', {}, `Import preview: ${fname}`),
+      h('p', { class: 'small' }, `${p.rows.length} good row(s)${p.header ? ', header row found' : ''}, separator "${p.sep === '\t' ? 'tab' : p.sep}".`),
+      p.bad.length ? msg('warn', h('b', {}, `${p.bad.length} row(s) will be skipped:`), h('ul', {}, p.bad.map((b) => h('li', {}, `line ${b.line}: ${b.reason} (${b.text})`)))) : null,
+      p.rows.length ? h('div', { class: 'scroll' }, h('table', {}, h('tr', {}, h('th', { class: 'num' }, 'Line'), h('th', { class: 'num' }, 'Teeth'), h('th', { class: 'num' }, 'Qty'), h('th', {}, 'Note')),
+        p.rows.map((r) => h('tr', {}, h('td', { class: 'num' }, r.line), h('td', { class: 'num' }, r.teeth), h('td', { class: 'num' }, r.qty), h('td', {}, r.note))))) : msg('err', 'No usable rows in this file.'),
+      h('div', { class: 'row' },
+        h('button', { class: 'primary', disabled: !p.rows.length || undefined, onclick: () => { rows = G.mergeGears([], p.rows).map((g) => ({ ...g, note: g.note || '' })); csvPreview.replaceChildren(); drawRows(); } }, 'Replace my list with these'),
+        h('button', { class: 'blue', disabled: !p.rows.length || undefined, onclick: () => { rows = G.mergeGears(rows.map((r) => ({ ...r, teeth: Number(r.teeth), qty: Number(r.qty) })), p.rows).map((g) => ({ ...g, note: g.note || '' })); csvPreview.replaceChildren(); drawRows(); } }, 'Add to my list'),
+        h('button', { onclick: () => csvPreview.replaceChildren() }, 'Cancel')),
+      h('p', { class: 'small muted' }, 'Nothing changes until you pick Replace or Add, and then Save.')));
+  };
+  const save = () => {
+    if (check().length) return;
+    inv.name = name.value || 'Unnamed';
+    inv.gears = G.mergeGears([], rows.map((r) => ({ teeth: Number(r.teeth), qty: Number(r.qty), note: String(r.note || '').trim() })));
+    saveStore(); location.hash = '#/inventories';
+  };
+  const usedBy = store.machines.filter((m) => (m.trains || []).some((t) => t.inventory === inv.id)).map((m) => m.name);
+  const card = h('div', { class: 'card', id: 'inv-editor' }, h('h3', {}, 'Edit gear list'),
+    usedBy.length ? h('p', { class: 'small muted' }, 'Used by: ', usedBy.join(', ')) : null,
+    h('div', { class: 'grid-form' }, h('label', {}, 'Name'), name, h('div', {})),
+    h('div', { class: 'row', style: 'margin:8px 0' }, h('label', {}, 'Quick add: '), quick, h('button', { onclick: quickAdd }, 'Add gears')),
+    h('div', { class: 'small muted' }, 'Type tooth counts separated by commas and press Add. "40-48" adds every count from 40 to 48, "30 x2" adds two. Gears you already have get their quantity increased.'),
+    h('table', { class: 'tbl-edit', id: 'gear-table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Tooth count'), h('th', {}, 'Quantity'), h('th', {}, 'Note (optional)'), h('th', {}, ''))), tbody),
+    h('div', { class: 'row', style: 'margin:6px 0' }, h('button', { onclick: () => { rows.push({ teeth: '', qty: 1, note: '' }); drawRows(); const l = tbody.querySelector('tr:last-child input'); if (l) l.focus(); } }, '+ Add gear'),
+      h('button', { onclick: () => { if (confirm('Remove every gear from this list?')) { rows = []; drawRows(); } } }, 'Clear list')),
+    h('div', { class: 'row', style: 'margin:6px 0' }, file, h('button', { onclick: () => file.click() }, 'Import CSV'),
+      h('button', { onclick: () => downloadText(`${(name.value || 'gears').replace(/[^\w -]+/g, '')}.csv`, G.gearsToCsv(rows), 'text/csv') }, 'Export CSV'),
+      h('a', { href: '#', onclick: (e) => { e.preventDefault(); downloadText('sample-gear-list.csv', G.SAMPLE_CSV, 'text/csv'); } }, 'Download sample CSV'),
+      h('span', { class: 'small muted' }, 'Columns: teeth, qty, note (qty defaults to 1). Header row optional; comma or semicolon; one column of tooth counts also works.')),
+    csvPreview, info,
+    h('div', { class: 'row' }, h('button', { class: 'primary', onclick: save }, 'Save'),
+      h('button', { onclick: () => (location.hash = '#/inventories') }, 'Cancel'),
+      h('button', { onclick: () => { if (confirm(`Delete gear list "${inv.name}"?`)) { store.inventories = store.inventories.filter((x) => x !== inv); saveStore(); location.hash = '#/inventories'; } } }, 'Delete')));
+  card._showCsv = showCsv;
+  window.__rgShowCsv = showCsv; // used by the browser test
+  drawRows();
+  return card;
 }
 function copyInv(inv) {
   const c = { ...clone(inv), id: 'inv-' + Math.random().toString(36).slice(2, 8), name: inv.name + ' (copy)', builtin: false };

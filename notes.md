@@ -3,7 +3,39 @@
 Source: `source.bas` (RAM-GEAR "GEAR HOBBING MACHINE PROGRAMS", by Aaron Tagle & friends).
 New app: `app/` (static HTML/CSS/JS, no build step, no CDN, works offline).
 
-## 0. v1.4 (2026-10-13): FO-10 index change gears
+## 0. v1.5 (2026-10-13): simple Add a machine, own gear lists, gear-list CSV
+
+**Add a machine** now opens with two labelled sections instead of free-form formula tables:
+- *Index ratio formula*: one box, **Index constant** (default 24); formula pre-built `RIDX = KIDX * K / Z`.
+- *Differential ratio formula*: one box, **Differential constant** (default 11.9367, the Fauter value);
+  formula pre-built in the Fauter / FD-500 form `RDIFF = IF(Q = 1, KDIFF * SIND(B) / D / K, (KDIFF / MM) * SIND(B) * D / K)`, MM = 25.4.
+- Default inputs: Number of teeth in gear (Z), Hob starts (K), Helix angle (B), Normal module or DP (D), Inch/metric (Q).
+- Each section has its own gear list dropdown and search type, and a *Remove* button (and *+ Add index/differential ratio* to bring it back).
+  Removing a section also drops its formula, constant, result and any default inputs nothing else uses.
+- The full inputs/constants/formulas/results/gear-trains tables are still there, folded under **Advanced**. Formula check and preview cover both ratios.
+- *Copy to edit* on Fauter / FD-500 shows the same sections (their constant `O` is the differential box); *+ Add index ratio* adds Z, KIDX, RIDX
+  and an index train without touching the differential maths (unit-tested: same digits, same printout). FO-10 copies get their literal `24 * K / Z`
+  turned into `KIDX * K / Z` with KIDX = 24 (identical result).
+- Code: `js/simple.js` (pure helpers: `simpleTemplate`, `addIndex`, `addDifferential`, `removeSection`, `normalizeIndex`, `sectionInfo`).
+
+**Own gear lists per machine.** On save, a new machine (or copy) gets two inventories, `<name> index gears` and `<name> differential gears`
+(placeholder one each of 20-88), linked to its trains and recorded in `machine.ownInventories`. Renaming the machine renames them; deleting it
+asks whether to delete them too. The machine screen has **Edit index gears / Edit differential gears** buttons (if a train still points at a
+built-in list, a copy is made first).
+
+**Gear-list editor** is now a table per gear (tooth count, quantity, optional note) with + Add gear / remove / Clear, and a quick-add box
+(`20, 24, 30, 36`, `40-48`, `30 x2`; same tooth count adds quantity). Notes are stored as `{teeth, qty, note}` (old lists without notes still load).
+
+**CSV import / export** (`js/gearcsv.js`): columns `teeth,qty,note`; qty defaults to 1; note optional; header row optional (columns found by name,
+any order); a single column of tooth counts works; comma, semicolon or tab separators (Excel); quotes and UTF-8 BOM handled. Import shows a preview
+with skipped bad rows (line number and reason) and *Replace my list* / *Add to my list*; nothing is kept until Save. *Export CSV* writes the same
+format, and *Download sample CSV* gives an example.
+
+Tests added: `test/simple_csv.test.mjs` (in `npm test`) and browser test `test/ui_new_machine.py` (new machine with index 24*K/Z and a
+Fauter-like differential, saves, z=40 K=1 gives index 0.6, both gear match lists appear; own lists, quick add, CSV preview/add/replace with bad rows,
+rename, Fauter copy + index, delete with lists).
+
+## 0b. v1.4 (2026-10-13): FO-10 index change gears
 
 Gary: the FO-10 base index formula is **24/z**. The built-in TOS FO-10 machine now has:
 * a new input box **"Number of teeth in gear (z)"** (`Z`), used only by the index calculation.
