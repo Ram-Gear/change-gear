@@ -105,7 +105,7 @@ function buildCase(c) {
   exp.push(...r.reportText.flatMap((t) => t.split('\n')));
   if (c.gear && def.trains.length) {
     keys.push('C');
-    const t = calc.runTrain(r, def.trains[0]);
+    const t = calc.runTrain(r, { ...def.trains[0], strategy: 'legacy-ramgear' }); // BASIC search order (still selectable in the UI)
     for (let i = 0; i < c.gear; i++) {
       const m = t.gen.next().value;
       exp.push(...m.lines);

@@ -39,7 +39,7 @@ tr.sel td { background:#e5f0fa; }
 tr.whole td { background:#eef8ee; }
 tr.clickable { cursor:pointer; }
 tr.clickable:hover td { background:#f3f6f9; }
-pre.screen { background:#0f1a12; color:#9cff9c; padding:10px 12px; border-radius:6px; overflow:auto; font:13px/1.35 ui-monospace, Consolas, "Courier New", monospace; margin:6px 0 0; white-space:pre; }
+pre.screen { background:#fff; color:#111; border:1px solid var(--line); padding:10px 12px; border-radius:6px; overflow:auto; font:13px/1.35 ui-monospace, Consolas, "Courier New", monospace; margin:6px 0 0; white-space:pre; }
 .results-table td:first-child { width:55%; }
 .big { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; }
 .msg { padding:8px 12px; border-radius:6px; margin:6px 0; }

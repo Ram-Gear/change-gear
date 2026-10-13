@@ -169,7 +169,7 @@ t('FO-10 index ratio and ranked index gears', () => {
   const def = calc.BUILTIN_MACHINES.find((m) => m.id === 'tos-fo10-diff');
   const ti = def.trains.find((x) => x.kind === 'index');
   assert.equal(ti.strategy, 'ranked'); assert.equal(ti.inventory, 'fo10-index-20-88');
-  assert.equal(def.trains[0].kind, 'differential'); assert.equal(def.trains[0].strategy, 'legacy-ramgear');
+  assert.equal(def.trains[0].kind, 'differential'); assert.equal(def.trains[0].strategy, 'ranked');
   const inv = calc.BUILTIN_INVENTORIES.find((i) => i.id === 'fo10-index-20-88');
   assert.equal(inv.name, 'FO-10 index gears'); assert.equal(inv.gears.length, 69); assert.ok(inv.gears.every((g) => g.qty === 1));
   for (const gears of [4, 2]) {

@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 import * as dataStore from './store.js';
-export const APP_VERSION = 'RAM-GEAR web v1.6 (2026-10-13)';
+export const APP_VERSION = 'RAM-GEAR web v1.6.1 (2026-10-13)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 function showStorageBanner(problem) {
@@ -73,7 +73,7 @@ function h(tag, attrs, ...kids) {
   return el;
 }
 const msg = (kind, ...t) => h('div', { class: `msg ${kind}` }, ...t);
-const fmtPct = (e) => (e === 0 ? '0' : (e > 0 ? '+' : '') + (e * 100).toFixed(5)) + ' %';
+const fmtPct = (e) => { const t = (e * 100).toFixed(5); return (Number(t) === 0 ? '0.00000' : (e > 0 ? '+' : '') + t) + ' %'; };
 const trimNum = (s) => String(s).trim();
 
 // ------------------------------------------------------------------ navigation
@@ -225,7 +225,7 @@ function renderMachine(id) {
       h('button', { onclick: () => printSheet(m, res, inputs, job, trainState) }, 'Print sheet')));
     res.warnings.forEach((w) => card.append(msg('warn', w.replace('Division by zero', 'Division by zero (the original BASIC prints "Division by zero" and carries on with its largest number, 1.701412E+38)'))));
     card.append(h('table', { class: 'results-table' }, compiled.outputs.map((o) => h('tr', {}, h('td', {}, o.label || o.name), h('td', { class: 'big' }, formatOutput(res, o))))));
-    if (res.reportText.length) card.append(h('details', { open: m.builtin }, h('summary', {}, 'Original program screen'), h('pre', { class: 'screen' }, res.reportText.join('\n'))));
+    if (res.reportText.length) card.append(h('details', {}, h('summary', {}, 'Original program screen'), h('pre', { class: 'screen' }, res.reportText.join('\n'))));
     out.append(card);
     if (card.scrollIntoView && !auto) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     const trainState = [];

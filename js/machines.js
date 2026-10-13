@@ -22,7 +22,7 @@ const DIFF_INPUTS = [
   { name: 'K', label: 'Number of leads (starts) on the hob', unit: 'starts', example: '1', basic: 'ENTER THE NUMBER OF LEADS ON CUTTER' },
   UNITS,
 ];
-const DIFF_TRAIN = [{ kind: 'differential', label: 'Differential change gears (A/B x C/D)', ratio: 'R', strategy: 'legacy-ramgear', inventory: 'legacy-20-88' }];
+const DIFF_TRAIN = [{ kind: 'differential', label: 'Differential change gears (A/B x C/D)', ratio: 'R', strategy: 'ranked', inventory: 'legacy-20-88', gears: 4, maxResults: 20 }];
 
 function differential(id, menu, name, machineConst, constNote, metricExpr, inchExpr, extraNote, extra = {}) {
   return {
