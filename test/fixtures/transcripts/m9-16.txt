@@ -1,0 +1,73 @@
+# keys: ["9","4.688","30","143","24","2",".125","1","1","342","138","E"]
+
+
+
+
+
+                                 RAM-GEAR                         
+                       GEAR HOBBING MACHINE PROGRAMS              
+                              TABLE OF CONTENTS                    
+
+
+                        (1) BARBER COLEMAN INDEX
+                        (2) BARBER COLEMAN FEED
+                        (3) FD-500 OVERTON DIFFERENTIAL
+                        (4) FAUTER DIFFERENTIAL
+                        (5) OFA-71A TOS DIFFERENTIAL
+                        (6) FD-320 OVERTON DIFFERNTIAL
+                        (7) FO-10 TOS DIFFERNTIAL
+                        (9) HOBB RPM & CUTTING TIME
+                        (E) EXIT PROGRAM
+
+
+
+
+
+
+ENTER THE LETTER FOR WHICH PROGRAM YOU WANT TO USE? 9
+
+
+
+                      PROGRAM FOR HOBB RPM                      
+                             AND                                
+                         CUTTING TIME                           
+
+
+
+  WHAT IS THE HOBB DIAMETER: ? 4.688
+  WHAT IS THE HELIX ANGLE: ? 30
+  WHAT SURFACE FEET ARE YOU WANTING TO RUN: ? 143
+  NUMBER OF TEETH IN PART: ? 24
+  NUMBER OR STARTS IN HOBB: ? 2
+  FEED IN THOUSANDS PER REVALUTION OF PART: ? .125
+  LENGTH OF CUT: ? 1
+  HOW MANY CUTS WILL IT TAKE: ? 1
+  HOW MANY PARTS WILL BE CUT: ? 342
+  SETUP TIME IN MINUTES: ? 138
+
+
+                      PROGRAM FOR HOBB RPM                       
+                              AND                                
+                           HOBB TIME                             
+
+
+
+  HOBB DIAMETER:  4.688 
+  HOBB RPM:  116.5145 
+  HELIX ANGLE;  30 
+  SURFACE FEET PER MIN.:  143 
+  NUMBER OF TEETH IN PART:  24 
+  NUMBER OF STARTS IN HOBB:  2 
+  FEED IN THOUSANDS PER REVALUTION OF PART:  .125 
+  FACE WIDTH OF GEAR:  1 
+  LENGTH OF CUT:  1.154701 
+  NUMBER OF CUTS:  1 
+  NUMBER OF PARTS IN THE JOB:  342 
+  SETUP TIME IN MINUTES:  138 
+
+                                                MIN. PER CUT .....:  .951395 
+                                                MIN. PER PART ....:  1.354904 
+                              TOTAL TIME IN HOURS FOR THE JOB ....:  7.722952 
+
+
+(P) TO PRINT, (M) RETURN TO MENEU, (R) RE-RUN PROGRAM  (E) END? E

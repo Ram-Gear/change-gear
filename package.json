@@ -1,0 +1,13 @@
+{
+  "name": "ramgear-change-gear",
+  "private": true,
+  "version": "1.0.0",
+  "description": "RAM-GEAR gear hobbing machine programs (rebuild of the legacy BASIC menu) - static browser app",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8000 --bind 127.0.0.1",
+    "test": "node test/run_all.mjs",
+    "test:live": "node test/basic_compare.mjs --live",
+    "standalone": "node tools/make-standalone.mjs"
+  }
+}

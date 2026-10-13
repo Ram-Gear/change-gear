@@ -1,0 +1,46 @@
+# keys: ["2","600005","PART","3.55",".4164","38.05","C","E"]
+
+
+
+
+
+                                 RAM-GEAR                         
+                       GEAR HOBBING MACHINE PROGRAMS              
+                              TABLE OF CONTENTS                    
+
+
+                        (1) BARBER COLEMAN INDEX
+                        (2) BARBER COLEMAN FEED
+                        (3) FD-500 OVERTON DIFFERENTIAL
+                        (4) FAUTER DIFFERENTIAL
+                        (5) OFA-71A TOS DIFFERENTIAL
+                        (6) FD-320 OVERTON DIFFERNTIAL
+                        (7) FO-10 TOS DIFFERNTIAL
+                        (9) HOBB RPM & CUTTING TIME
+                        (E) EXIT PROGRAM
+
+
+
+
+
+
+ENTER THE LETTER FOR WHICH PROGRAM YOU WANT TO USE? 2
+                           (2) BARBER COLEMAN FEED                 
+
+
+ENTER SALES ORDER NUNBER: ? 600005
+ENTER PART DISCRIPTION: ? PART
+ENTER THE CONSTANT: ? 3.55
+ENTER THE CIRCULAR PITCH: ? .4164
+ENTER THE HELIX ANGLE: ? 38.05
+R= 5.074865   C= 3.55       ANGLE= .6640978             CIR PITCH= .4164 
+
+(P) TO PRINT, (M) RETURN TO MENEU, (C) CHANGE GEARS, (R) RE-RUN PROGRAM ? C
+
+
+NEEDED RATIO 5.074865 
+
+GEARTRAIN RATIO 5.075 
+A; 87   B; 24   C; 28   D; 20 
+
+(P) PRINT, (E) END, (C) CONTINUE, (M) MAIN MENEU? E

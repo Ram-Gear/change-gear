@@ -1,0 +1,62 @@
+# keys: ["5","644971","PART","18","14","1","I","C","C","C","E"]
+
+
+
+
+
+                                 RAM-GEAR                         
+                       GEAR HOBBING MACHINE PROGRAMS              
+                              TABLE OF CONTENTS                    
+
+
+                        (1) BARBER COLEMAN INDEX
+                        (2) BARBER COLEMAN FEED
+                        (3) FD-500 OVERTON DIFFERENTIAL
+                        (4) FAUTER DIFFERENTIAL
+                        (5) OFA-71A TOS DIFFERENTIAL
+                        (6) FD-320 OVERTON DIFFERNTIAL
+                        (7) FO-10 TOS DIFFERNTIAL
+                        (9) HOBB RPM & CUTTING TIME
+                        (E) EXIT PROGRAM
+
+
+
+
+
+
+ENTER THE LETTER FOR WHICH PROGRAM YOU WANT TO USE? 5
+                           (5) TOS OFA-71A                     
+
+
+ENTER THE SALES ORDER NUMBER: ? 644971
+WHAT IS THE PART NAME: ? PART
+ENTER THE HELIX ANGLE: ? 18
+ENTER CUTTER NDP OR NORMAL MODULE: ? 14
+ENTER THE NUMBER OF LEADS ON CUTTER: ? 1
+ENTER AN (I) FOR INCH OR (M) FOR METRIC MODULE: ? I
+ 1.301179 
+(P) TO PRINT, (M) RETURN TO MENEU, (C) CHANGE GEARS, (R) RE-RUN PROGRAM ? C
+
+
+NEEDED RATIO 1.301179 
+
+GEARTRAIN RATIO 1.301087 
+A; 57   B; 46   C; 21   D; 20 
+
+(P) PRINT, (E) END, (C) CONTINUE, (M) MAIN MENEU? C
+
+
+NEEDED RATIO 1.301179 
+
+GEARTRAIN RATIO 1.301205 
+A; 80   B; 83   C; 27   D; 20 
+
+(P) PRINT, (E) END, (C) CONTINUE, (M) MAIN MENEU? C
+
+
+NEEDED RATIO 1.301179 
+
+GEARTRAIN RATIO 1.301176 
+A; 79   B; 85   C; 28   D; 20 
+
+(P) PRINT, (E) END, (C) CONTINUE, (M) MAIN MENEU? E

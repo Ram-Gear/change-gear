@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAM-GEAR - Gear Hobbing Machine Programs</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">RAM-GEAR <span>Gear hobbing machine programs</span></div>
+  <div class="topnote">Change gears, differential / index / feed ratios, hob RPM &amp; cutting time</div>
+</header>
+<div class="layout">
+  <nav id="nav" class="nav" aria-label="Machines"></nav>
+  <main id="main" class="main">
+    <noscript>This app needs JavaScript.</noscript>
+    <div id="boot-msg" class="card">Loading…</div>
+  </main>
+</div>
+<div id="print-area" class="print-area" aria-hidden="true"></div>
+<script>
+  // ES modules do not load from file:// in most browsers - explain instead of a blank page.
+  if (location.protocol === 'file:') {
+    document.getElementById('boot-msg').innerHTML =
+      '<h2>Please start the app with the local web server</h2>' +
+      '<p>Browsers block this kind of app when the file is opened directly. ' +
+      'Double-click <b>start-app.bat</b> (Windows) or run <code>./start-app.sh</code>, ' +
+      'then open <a href="http://localhost:8000/">http://localhost:8000/</a>. ' +
+      'Or use <b>ramgear-standalone.html</b>, which works when opened directly.</p>';
+  }
+</script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

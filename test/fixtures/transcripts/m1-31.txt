@@ -1,0 +1,55 @@
+# keys: ["1","939726","PART","Y","5","19","Y","Y","N","N","Y","E"]
+
+
+
+
+
+                                 RAM-GEAR                         
+                       GEAR HOBBING MACHINE PROGRAMS              
+                              TABLE OF CONTENTS                    
+
+
+                        (1) BARBER COLEMAN INDEX
+                        (2) BARBER COLEMAN FEED
+                        (3) FD-500 OVERTON DIFFERENTIAL
+                        (4) FAUTER DIFFERENTIAL
+                        (5) OFA-71A TOS DIFFERENTIAL
+                        (6) FD-320 OVERTON DIFFERNTIAL
+                        (7) FO-10 TOS DIFFERNTIAL
+                        (9) HOBB RPM & CUTTING TIME
+                        (E) EXIT PROGRAM
+
+
+
+
+
+
+ENTER THE LETTER FOR WHICH PROGRAM YOU WANT TO USE? 1
+                 (1) BARBER COLEMAN INDEX
+
+
+SALES ORDER NUMBER: ? 939726
+ENTER PART DISCRIPTION: ? PART
+DO THE HOB AND THE HELIX ANGLE HAVE THE SAME HAND: ? Y
+ENTER THE CONSTANT: ? 5
+ENTER THE NUMBER OF TEETH: ? 19
+ 75 / 94 
+ .7978724 
+DO YOU WISH TO BREAK THE NUMBERS DOWN? Y
+ 75 
+ 3.75 * 20 
+IS THIS THE NUMBER YOU WANT. PRESS (S) TO START OVER? Y
+ 3.75 * 20 
+
+ 94 
+ 4.7 * 20 
+IS THIS THE NUMBER YOU WANT. PRESS (S) START OVER? N
+ 4.476191 * 21 
+IS THIS THE NUMBER YOU WANT. PRESS (S) START OVER? N
+ 4.272728 * 22 
+IS THIS THE NUMBER YOU WANT. PRESS (S) START OVER? Y
+ 3.75 * 20 
+ .7978724 
+ 3.75 * 20 / 4.272728 * 22 
+ .7978724 
+ENTER (P) TO PRINT, (M) RETURN TO MAIN MENEU, (E) END, (R) TO RE-RUN THIS PROGRAM ? E

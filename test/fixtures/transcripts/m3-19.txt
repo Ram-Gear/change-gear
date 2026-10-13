@@ -1,0 +1,37 @@
+# keys: ["3","582301","PART","9.66","2.5","1","M","E"]
+
+
+
+
+
+                                 RAM-GEAR                         
+                       GEAR HOBBING MACHINE PROGRAMS              
+                              TABLE OF CONTENTS                    
+
+
+                        (1) BARBER COLEMAN INDEX
+                        (2) BARBER COLEMAN FEED
+                        (3) FD-500 OVERTON DIFFERENTIAL
+                        (4) FAUTER DIFFERENTIAL
+                        (5) OFA-71A TOS DIFFERENTIAL
+                        (6) FD-320 OVERTON DIFFERNTIAL
+                        (7) FO-10 TOS DIFFERNTIAL
+                        (9) HOBB RPM & CUTTING TIME
+                        (E) EXIT PROGRAM
+
+
+
+
+
+
+ENTER THE LETTER FOR WHICH PROGRAM YOU WANT TO USE? 3
+                       (3) FD-500 OVERTON DIFFERNTIAL              
+
+ENTER SALES ORDER NUMBER: ? 582301
+ENTER PART DISCRIPTION: ? PART
+ENTER THE HELIX ANGLE: ? 9.66
+ENTER CUTTER NDP OR NORMAL MODULE: ? 2.5
+ENTER THE NUMBER OF LEADS ON CUTTER: ? 1
+ENTER AN (I) FOR INCH OR (M) FOR METRIC MODULE: ? M
+ .4027228 
+(P) TO PRINT, (M) RETURN TO MENEU, (C) CHANGE GEARS, (R) RE-RUN PROGRAM ? E
