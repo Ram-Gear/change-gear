@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 import * as dataStore from './store.js';
-export const APP_VERSION = 'RAM-GEAR web v1.8 (2026-10-14)';
+export const APP_VERSION = 'RAM-GEAR web v1.8.1 (2026-10-14)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 function showStorageBanner(problem) {
@@ -104,11 +104,21 @@ function loginScreen(a) {
       b.onclick = async () => { await dataStore.signOut().catch(() => {}); resolve(dataStore.auth); };
       card.append(b); main.replaceChildren(card); return;
     }
-    card.innerHTML = '<h2>Sign in</h2><p class="muted">Use your RAM-GEAR username and PIN (the same as the QC Form).</p>' +
-      '<form class="grid-form" id="login-form"><label for="login-user">Username</label><input id="login-user" type="text" autocomplete="username"><div></div>' +
-      '<label for="login-pin">PIN</label><input id="login-pin" type="password" inputmode="numeric" autocomplete="current-password"><div></div>' +
-      '<div></div><div class="row"><button class="primary" type="submit" id="login-go">Sign in</button></div><div></div></form>';
-    card.append(err);
+    // v1.8.1: same look and field order as the QC Form sign-in (Ram-Gear/ramgear-app index.html #login, app.css "login screen"). Logic unchanged.
+    card.className = 'rg-login'; card.setAttribute('aria-label', 'Sign in');
+    card.innerHTML = '<div class="rg-login-bg" aria-hidden="true"></div>' +
+      '<form class="grid-form rg-login-card" id="login-form" autocomplete="on" novalidate>' +
+      '<img class="rg-login-logo" src="img/ramgear-logo.jpg" alt="Ram-Gear Manufacturing Inc logo" width="383" height="92">' +
+      '<h1 class="rg-login-company">Ram-Gear Manufacturing Incorporated</h1>' +
+      '<address class="rg-login-address">6150 E Hwy 44<br>Alice, TX 78332</address>' +
+      '<p class="rg-login-app"><b>Change Gear</b> <span>gear hobbing machine programs</span></p>' +
+      '<label class="rg-fld" for="login-user"><span>Username</span><input id="login-user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"></label>' +
+      '<label class="rg-fld" for="login-pin"><span>Password or PIN</span><input id="login-pin" type="password" autocomplete="current-password"></label>' +
+      '<div id="login-msg-slot"></div>' +
+      '<button class="rg-btn" type="submit" id="login-go">Sign in</button>' +
+      '<p class="rg-login-foot" id="login-admin-note">Use the same username and PIN as the QC Form. 🔒 Adding or changing machines needs an admin login; everyone else can calculate and view.</p>' +
+      '<p class="rg-login-rev">' + APP_VERSION + '</p></form>';
+    card.querySelector('#login-msg-slot').append(err);
     if (a.error) { err.className = 'msg err'; err.textContent = a.error; }
     const form = card.querySelector('form');
     form.onsubmit = async (ev) => {
@@ -136,9 +146,13 @@ function loginScreen(a) {
   const v = document.createElement('span'); v.id = 'app-version'; v.className = 'version-stamp'; v.textContent = APP_VERSION;
   (brand || document.body).append(v);
 })();
-window.addEventListener('error', (ev) => showFatal(ev.error || ev.message));
+// Benign browser notices (Chrome/Edge fire these as window 'error' events with no Error object) must not show the red banner.
+const BENIGN_ERROR = /ResizeObserver loop/i;
+const errMessage = (e) => String((e && e.message) || e || '');
+window.addEventListener('error', (ev) => { if (BENIGN_ERROR.test(errMessage(ev.error || ev.message))) { ev.preventDefault && ev.preventDefault(); return; } showFatal(ev.error || ev.message); });
 window.addEventListener('unhandledrejection', (ev) => showFatal(ev.reason));
 function showFatal(e) {
+  if (BENIGN_ERROR.test(errMessage(e))) return;
   const d = document.createElement('div'); d.className = 'msg err';
   d.textContent = 'Something went wrong: ' + ((e && e.message) || e) + ' - please tell Change Gear, and quote ' + APP_VERSION + '.';
   ($main || document.body).prepend(d);
@@ -198,7 +212,7 @@ function renderNav() {
     ...calc.BUILTIN_MACHINES.map((m) => link(`#/m/${m.id}`, h('span', { class: 'num' }, `(${m.menu})`), m.name)),
     h('h3', {}, 'My machines'),
     ...(store.machines.length ? store.machines.map((m) => link(`#/m/${m.id}`, h('span', { class: 'num' }, '•'), m.name)) : [h('div', { class: 'muted small', style: 'padding:2px 16px' }, 'None yet')]),
-    canEdit() ? link('#/new', h('span', { class: 'num' }, '+'), 'Add a machine') : null,
+    canEdit() ? link('#/new', h('span', { class: 'num' }, '+'), 'Add a machine') : link('#/admin-hint', h('span', { class: 'num' }, '🔒'), h('span', { id: 'add-hint', class: 'add-hint' }, 'Sign in as admin to add machines')),
     h('h3', {}, 'Setup'),
     link('#/inventories', h('span', { class: 'num' }, '⚙'), 'Gear inventories'),
     link('#/io', h('span', { class: 'num' }, '⇅'), 'Import / export'),
@@ -220,6 +234,7 @@ function route() {
     if (parts[0] === 'inventories') return renderInventories(parts[1]);
     if (parts[0] === 'io') return renderIO();
     if (parts[0] === 'help') return renderHelp();
+    if (parts[0] === 'admin-hint') return renderAdminHint();
     return renderHome();
   } catch (e) {
     console.error(e);
@@ -966,6 +981,17 @@ function renderIO() {
 }
 
 // ------------------------------------------------------------------ help
+// v1.8.1: explain why "Add a machine" is missing for non-admins, with sign out / switch account.
+function renderAdminHint() {
+  const a = dataStore.auth;
+  const roleText = a.role === 'admin' ? 'admin' : a.role === 'viewer' ? 'viewer (calculate and view only)' : (a.role || 'none');
+  $main.replaceChildren(h('div', { class: 'card', id: 'admin-hint-card' }, h('h2', {}, 'Adding machines needs an admin'),
+    h('p', {}, 'You are signed in as ', h('b', { id: 'hint-user' }, a.username || '(unknown)'), ' with the Change Gear role ', h('b', { id: 'hint-role' }, roleText), '.'),
+    h('p', {}, 'Only admins can add, edit, lock or delete machines and gear lists. Viewers can calculate and look at everything. If you have an admin login (the same as the QC Form admin), sign out and sign in with it. An admin can change your role in QC Form admin.'),
+    h('div', { class: 'row' }, h('button', { class: 'primary', id: 'hint-signout', onclick: async () => { await dataStore.signOut().catch(() => {}); location.hash = '#/'; location.reload(); } }, 'Sign out / switch account'),
+      h('button', { onclick: () => history.back() }, 'Back'))));
+}
+
 function renderHelp() {
   $main.replaceChildren(h('div', { class: 'card', html: `
 <h2>Formula help</h2>

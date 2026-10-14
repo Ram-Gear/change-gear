@@ -44,7 +44,7 @@ with sync_playwright() as p:
     check(pg.locator('button:has-text("Save machine")').count() == 0 and pg.locator('#const-index').is_disabled(), 'locked editor read-only for admin')
     check(pg.locator('#copy-draft:has-text("Copy to new draft")').count() == 1, 'Copy to new draft offered')
     # copy to new draft
-    pg.click('#copy-draft'); pg.wait_for_selector('#machine-name')
+    pg.click('#copy-draft'); pg.wait_for_selector('button:has-text("Save machine")')
     check(pg.locator('button:has-text("Save machine")').count() == 1 and not pg.locator('#const-index').is_disabled(), 'copy is an editable draft')
     pg.click('button:has-text("Save machine")'); pg.wait_for_selector('#draft-badge')
     pg.wait_for_function("JSON.parse(localStorage.getItem('cgmock.db')).cg_machines.some(m => m.name === 'Lock UI Hobber (my copy)')", timeout=15000)

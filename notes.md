@@ -438,3 +438,9 @@ export/import with manuals, delete asks about the manual) and `test/ui_standalon
   gearTrainAdmin box (remove train on drafts; clear/delete gear lists, locked too), Delete/Clear on gear inventories page.
 * Known: strategy changes on a locked machine's results page are kept in this browser only (definition frozen).
 * Tests: store_cloud.test.mjs lock section; test/ui_lock_delete.py (28 checks).
+* v1.8 dev fix: global error handler ignores benign "ResizeObserver loop ..." window errors (Chrome/Edge notice, no real error); real errors still show the banner.
+
+## v1.8.1 (2026-10-14)
+* Non-admins see a greyed "🔒 Sign in as admin to add machines" menu line instead of nothing; #/admin-hint explains the user/role and offers Sign out / switch account. The sign-in card notes that adding machines needs admin.
+* Global error banner ignores benign "ResizeObserver loop" errors (3818864).
+* Sign-in screen restyled to match the QC Form login (Ram-Gear/ramgear-app index.html #login + app.css "login screen"): background photo with charcoal overlay, white card with #4396AC top border, logo, company name, address, app line, Username then Password or PIN, full-width #2E7386 Sign in button, footer + version. img/login-bg.jpg and img/ramgear-logo.jpg copied from the QC repo. Logic and element ids unchanged.

@@ -33,11 +33,12 @@ with sync_playwright() as p:
         # signed out -> login only; wrong PIN; then admin signs in
         pg = page(b, None); pg.goto(URL); pg.evaluate("localStorage.clear()"); pg.reload(); pg.wait_for_selector('#login-form')
         check(pg.locator('nav a').count() == 0 and pg.locator('form.grid-form#login-form').count() == 1, 'signed out: login screen only')
+        check('needs an admin' in pg.inner_text('#login-admin-note'), 'signed out: admin note on sign-in card')
         pg.fill('#login-user', 'gary'); pg.fill('#login-pin', '9999'); pg.click('#login-go'); pg.wait_for_selector('#login-error')
         check('Wrong username or PIN' in pg.inner_text('#login-error'), 'wrong PIN message')
         pg.fill('#login-pin', '4321'); pg.click('#login-go'); pg.wait_for_selector('#user-box')
         check(pg.inner_text('#user-name') == 'gary' and 'admin' in pg.inner_text('#user-role'), 'admin signed in, name + role shown')
-        check(pg.locator('nav a:has-text("Add a machine")').count() == 1, 'admin: Add a machine in menu')
+        check(pg.locator('nav a:has-text("Add a machine")').count() == 1 and pg.locator('#add-hint').count() == 0, 'admin: Add a machine in menu, no hint')
         # admin creates a machine -> stored in the fake shared DB
         pg.goto(URL + '#/new'); pg.wait_for_selector('#simple-index')
         pg.locator('.editor-main input').first.fill('Shared Test Hobber')
@@ -65,6 +66,9 @@ with sync_playwright() as p:
         check('viewer' in pv.inner_text('#user-role'), 'viewer role shown')
         check(pv.locator('nav a:has-text("Shared Test Hobber")').count() == 1, 'viewer sees shared machine')
         check(pv.locator('nav a:has-text("Add a machine")').count() == 0, 'viewer: no Add a machine')
+        check(pv.locator('#add-hint').count() == 1, 'viewer: greyed admin hint in menu')
+        pv.click('#add-hint'); pv.wait_for_selector('#admin-hint-card')
+        check(pv.inner_text('#hint-user') == 'vic' and 'viewer' in pv.inner_text('#hint-role') and pv.locator('#hint-signout').count() == 1, 'viewer: hint explains user/role, offers sign out')
         pv.goto(URL + '#/m/' + m['formulas']['def']['id']); pv.wait_for_selector('form.grid-form')
         for sel, what in [('button:has-text("Edit index gears")', 'edit gears'), ('button:has-text("Duplicate")', 'duplicate'), ('#manual-attach', 'attach manual'), ('#preset-add', 'add preset'), ('#preset-save', 'save presets')]:
             check(pv.locator(sel).count() == 0, f'viewer: no {what}')
