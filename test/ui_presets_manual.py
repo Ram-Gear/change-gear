@@ -4,6 +4,7 @@ via blob URL, export with manuals, import restores, delete machine asks about th
 Run: python3 test/ui_presets_manual.py [url]   (serve the folder first)"""
 import sys, json, os, tempfile
 from playwright.sync_api import sync_playwright
+import os, sys as _s; _s.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import cgmock
 URL = sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8000/'
 errors, out = [], {}
 def check(c, m):
@@ -16,13 +17,13 @@ def fo10(pg, z):
     for k, v in {'B': '30', 'D': '8', 'K': '1', 'Z': str(z)}.items(): pg.fill('#in-' + k, v)
     pg.click('button:has-text("Calculate")'); pg.wait_for_selector(IDX)
 with sync_playwright() as p:
-    b = p.chromium.launch(); ctx = b.new_context(accept_downloads=True, viewport={'width': 1300, 'height': 1000}); pg = ctx.new_page(); pg.set_default_timeout(180000); ctx.set_default_timeout(180000)
+    b = p.chromium.launch(); ctx = b.new_context(accept_downloads=True, viewport={'width': 1300, 'height': 1000}); pg = ctx.new_page(); cgmock.install(pg); pg.set_default_timeout(180000); ctx.set_default_timeout(180000)
     pg.on('pageerror', lambda e: errors.append('pageerror: ' + str(e)))
     pg.on('console', lambda m: errors.append('console.error: ' + m.text) if m.type == 'error' else None)
     pg.on('dialog', lambda d: d.accept())
     pg.goto(URL); pg.evaluate('localStorage.clear()'); pg.evaluate("new Promise(r => { const q = indexedDB.deleteDatabase('ramgear-change-gear'); q.onsuccess = q.onerror = q.onblocked = () => r(); })")
     pg.goto(URL + '#/'); pg.reload()
-    check('v1.6' in pg.locator('#app-version').inner_text(), 'version v1.6')
+    check('v1.8' in pg.locator('#app-version').inner_text(), 'version v1.8')
     # --- presets on FO-10 (built-in override)
     fo10(pg, 101)
     hint = pg.locator('.prime-hint')
@@ -51,7 +52,7 @@ with sync_playwright() as p:
     out['saved40'] = {'selected': sel, 'preset': pr40}
     check(pr40[1:5] == sel[1:5], 'saved selected match as preset')
     check(pg.locator('#preset-table tbody tr').count() == 2, 'preset table refreshed (2 presets)')
-    st = pg.evaluate("JSON.parse(localStorage.getItem('ramgear.changegear.v1'))")
+    st = pg.evaluate("window.__rgData()")
     check(len(st['builtinOverrides']['tos-fo10-diff']['indexPresets']) == 2, 'FO-10 presets stored as built-in override')
     # CSV import (add) + delete by hand + reload
     pg.evaluate("window.__rgShowPresetCsv('z,A,B,C,D,note\\n97,24,97,,,prime\\nbad,1,2,,,\\n', 'p.csv')")
@@ -94,7 +95,7 @@ with sync_playwright() as p:
         body = pg.evaluate("u => fetch(u).then(r => r.text()).catch(e => 'fetch failed: ' + e)", tab.url)
         check(body.startswith('%PDF-1.4'), 'blob is the PDF (' + body[:40] + ')')
     tab.close()
-    check(not st.get('manuals') and 'PDF' not in json.dumps(pg.evaluate("JSON.parse(localStorage.getItem('ramgear.changegear.v1'))")), 'PDF not in localStorage')
+    check(not st.get('manuals') and 'PDF' not in pg.evaluate("JSON.stringify(Object.assign({}, localStorage))"), 'PDF not in localStorage')
     # --- export with manuals, wipe, import restores
     pg.goto(URL + '#/io'); pg.wait_for_selector('#export-json')
     with pg.expect_download() as d: pg.click('#export-json')
@@ -120,7 +121,7 @@ with sync_playwright() as p:
     res = dict(zip(pg.locator('.results-table td:not(.big)').all_inner_texts(), pg.locator('.results-table td.big').all_inner_texts()))
     check(float(res['Index ratio']) == 0.6, 'custom index .6')
     pg.locator('.save-row-preset').first.click(); pg.wait_for_selector(IDX + ' tr.preset-row')
-    check(len([m for m in pg.evaluate("JSON.parse(localStorage.getItem('ramgear.changegear.v1'))")['machines'] if m['id'] == mid][0]['indexPresets']) == 1, 'custom preset stored on machine')
+    check(len([m for m in pg.evaluate("window.__rgData()")['machines'] if m['id'] == mid][0]['indexPresets']) == 1, 'custom preset stored on machine')
     pg.set_input_files('#manual-file', pdf_path); pg.wait_for_selector('#manual-open')
     dialogs = []
     pg.remove_listener('dialog', pg.listeners('dialog')[0]) if hasattr(pg, 'listeners') else None
@@ -133,7 +134,7 @@ with sync_playwright() as p:
     check(not left, 'manual deleted with machine')
     # --- IndexedDB unavailable: clear message, calculation still works
     c2 = b.new_context(); c2.add_init_script("Object.defineProperty(window, 'indexedDB', { get() { throw new Error('blocked'); } })")
-    p2 = c2.new_page(); p2.set_default_timeout(180000)
+    p2 = c2.new_page(); p2.set_default_timeout(180000); cgmock.install(p2)
     p2.on('pageerror', lambda e: errors.append('pageerror (no IDB): ' + str(e)))
     p2.goto(URL + '#/m/tos-fo10-diff'); p2.wait_for_selector('#manual-status')
     out['noIdb'] = p2.locator('#manual-status').inner_text()

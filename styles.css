@@ -88,3 +88,17 @@ details.advanced > summary { cursor:pointer; font-weight:600; padding:10px 4px; 
 tr.preset-row td { background:#eef7ee; font-weight:600; }
 .manual-bar { margin:6px 0; gap:6px; align-items:center; }
 .err-text { color:#b00020; }
+/* v1.7 logins */
+.user-box { margin-left:auto; font-size:13px; color:#cfd6de; display:flex; align-items:center; gap:6px; }
+.user-box #user-name { color:#fff; font-weight:600; }
+.user-box button { padding:3px 10px; font-size:12px; }
+.badge.admin { background:#2e7d32; color:#fff; }
+.badge.viewer { background:#e9edf1; color:#3b4652; }
+.login-card { max-width:520px; }
+
+/* v1.8 Verify & lock / admin delete */
+button.danger { background: #fff; color: #b3261e; border: 1px solid #b3261e; font-weight: 600; }
+button.danger:hover { background: #b3261e; color: #fff; }
+.badge.locked { background: #e7f0f2; color: #1d4f5c; border: 1px solid #2E7386; margin-left: 8px; }
+.badge.draft { background: #fff4d6; color: #7a5a00; border: 1px solid #d9a400; margin-left: 8px; }
+.card.danger-zone { border-left: 4px solid #b3261e; }

@@ -3,6 +3,65 @@
 Source: `source.bas` (RAM-GEAR "GEAR HOBBING MACHINE PROGRAMS", by Aaron Tagle & friends).
 New app: `app/` (static HTML/CSS/JS, no build step, no CDN, works offline).
 
+## 00. v1.7 (2026-10-13): real logins and shared data (Supabase, QC Form project)
+
+**Not pushed** (dev copy only). Live site is still v1.6.
+
+### Sign-in and roles
+- Login screen (username + PIN). Same rule as the QC Form: email = `u` + hex(UTF-8(lower(trim(username)))) + `@users.invalid`,
+  password = `rg1:` + PIN. `signInWithPassword`; if it fails, Edge Function `rg-admin` `{action:'activate', username, password}` once, then
+  one retry. Session kept by supabase-js in localStorage key `ramgear-changegear-auth`.
+- After sign-in the app calls `cg_role()`, `cg_can_view()`, `cg_can_edit()`, `cg_can_delete()`.
+  - not signed in, or role `none` / `cg_can_view() = false`: login screen only (role none gets "no access" + Sign out).
+  - viewer: calculate and view. Hidden: Add a machine, Edit, Duplicate, Copy to edit, Edit index/differential gears, gear-list
+    New/Edit/Duplicate/Delete, Save as preset (row + selected), preset add/save/delete/CSV import, Attach/Remove manual, JSON import,
+    Upload local data. Edit/copy/new URLs show a read-only view or a notice. Viewer gear-search choices (dropdowns) apply on that page only.
+  - admin (`cg_can_edit()`): everything; Delete machine / gear list / manual also needs `cg_can_delete()`.
+- Top bar shows the user, role badge and **Sign out**. The UI hiding is convenience; RLS on the server is the real lock.
+- supabase-js 2.117.3 is vendored as `app/js/supabase-vendor.js` (UMD build + one `export`), so `ramgear-standalone.html` needs no CDN.
+  Publishable key only (`sb_publishable_…`), never a secret key.
+
+### Shared database mapping (store.js -> cgmap.js)
+| App data | Table / column |
+|---|---|
+| custom machine (whole definition: inputs, constants, formulas, outputs, report, trains, numeric…) | `cg_machines` row, `name` = machine name, `notes` = description, `formulas` = `{app:'ramgear-changegear', schema:1, def:{…}}` |
+| built-in routine (FD-500, Fauter, FO-10, hob) | maths stays in code. One `cg_machines` row per built-in, keyed by its **name**, `formulas` = `{app, schema, builtin:<id>, override:{trains:{<i>:{strategy, useInventory, gears, tolerance, maxResults, inventory}}}}`. Created (upsert on `name`) by the first admin who saves a gear list / setting / preset for it |
+| machine's index gear list | `cg_gear_sets` kind `indexing` |
+| machine's differential gear list | `cg_gear_sets` kind `differential` |
+| gear quantities | `teeth int[]` repeats each tooth count qty times, sorted (`30 x2` -> `{30,30}`) |
+| per-gear notes, list name, qty-0 rows | `cg_gear_sets.notes` = JSON `{"format":"rg-gears-1","name":"…","note":"…","gears":[{"teeth":30,"qty":2,"note":"worn"}]}`; `teeth[]` stays the source of truth for quantities; plain-text notes are tolerated |
+| train using its own list | `inventory: "@own:index"` / `"@own:differential"` inside formulas; on load it becomes inventory id `cg-<machine uuid>-<kind>` |
+| index preset | `cg_presets` `name` = `z=<n>` (2nd, 3rd set for the same z: `z=<n>#2`, `#3`), `inputs` = `{z}`, `result` = `{A,B,C,D,note}` (C/D null for 2 gears) |
+| delete custom machine | soft delete: `deleted_at` set and name changed to `<name> [deleted <iso time>]` so the unique name is free again; its gear sets and presets are hard-deleted |
+| built-in "reset" | row kept, override emptied |
+
+Stays on this PC: last inputs, arithmetic setting, gear lists not used by any machine (localStorage `ramgear.changegear.v17.local`),
+manual PDFs (IndexedDB). A gear list shared by two machines is stored once per machine (they are separate after reload).
+The old v1.6 key `ramgear.changegear.v1` is left untouched as the source for the upload.
+
+**Saving**: every change runs `toRemote()` and diffs against the last synced state; only changed rows are written, in order
+(soft-delete removed machines, insert/update machines, delete removed gear sets/presets, upsert changed ones). Writes are serialised.
+A failed write shows a red banner ("NOT saved to the shared database …"). Viewers never write. Data is loaded at sign-in; other
+users' changes show after a page reload (no live updates).
+
+**Upload my local data to the shared database** (Import / export page, admin only, shown when this PC has v1.6 data): merges the
+v1.6 browser data in (same machine id or name replaced), saves, and remembers the upload (`ramgear.changegear.v17.migrated`).
+
+### Tests
+- `test/store_cloud.test.mjs` (in `npm test`, 65 checks): gear/preset encoding round trips, whole-data round trip stable, same ratio
+  after round trip, QC email rule, sign-in/activate/retry paths, roles none/viewer/admin, admin writes + no-op save + rename + soft
+  delete + name reuse, viewer sends no writes, fake RLS denies viewer, local-data upload. Uses `test/mock_supabase.js` (in-memory fake with the cg RLS rules).
+- `test/ui_auth.py` (browser, fake): login only when signed out, wrong PIN, admin creates machine/gear sets/preset in DB, sign out,
+  viewer read-only checks (22), role none, upload. `--live`: real project, login screen + wrong PIN; rg-admin intercepted in the browser.
+- `test/live_readonly.mjs`: real project, anon denied on all 3 tables and 4 RPCs, wrong login refused. Writes nothing.
+- Existing browser tests sign in as a fake admin via `test/cgmock.py`.
+
+### Open items
+- Live authenticated tests need two accounts in QC admin: a **test viewer** (changegear_role viewer) and a **test admin** (admin),
+  with their usernames/PINs, and OK to write test rows (named e.g. `ZZ test …`) that the test deletes afterwards.
+- Live gear lists/presets for built-ins only appear once an admin saves something for that routine.
+- No live refresh / conflict handling: last save wins per row.
+
 ## 0. v1.5 (2026-10-13): simple Add a machine, own gear lists, gear-list CSV
 
 **Add a machine** now opens with two labelled sections instead of free-form formula tables:
@@ -370,3 +429,12 @@ export/import with manuals, delete asks about the manual) and `test/ui_standalon
 4. Is the feed for hob time entered in inches (.080) in practice? The prompt says "thousands".
 5. What change gears does each machine actually have? Entering them as inventories lets the app rank
    real, available gear sets.
+
+## v1.8 (2026-10-14) Verify & lock, admin delete
+* Lock stored as cg_machines.formulas.{locked, lockedAt, lockedBy} (cgmap.js); def stays clean. fromRemote -> machine.lock.
+* store.js sync: a row already locked keeps its definition; only train.inventory links can change (client-side guard).
+* RLS does NOT enforce the lock; proposed trigger (not applied) in app/LOCKING.md.
+* app.js: Draft/Locked badges, Verify & lock confirm summary, deleteMachine (canDelete, drafts + locked, never built-ins),
+  gearTrainAdmin box (remove train on drafts; clear/delete gear lists, locked too), Delete/Clear on gear inventories page.
+* Known: strategy changes on a locked machine's results page are kept in this browser only (definition frozen).
+* Tests: store_cloud.test.mjs lock section; test/ui_lock_delete.py (28 checks).

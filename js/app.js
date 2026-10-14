@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 import * as dataStore from './store.js';
-export const APP_VERSION = 'RAM-GEAR web v1.6.2 (2026-10-13)';
+export const APP_VERSION = 'RAM-GEAR web v1.8 (2026-10-14)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 function showStorageBanner(problem) {
@@ -15,9 +15,122 @@ const $main = document.getElementById('main');
 const $nav = document.getElementById('nav');
 
 // ------------------------------------------------------------------ storage (all access via store.js)
-let store = await dataStore.load(calc.REMOVED_BUILTIN_IDS);
+// v1.7: sign in first (same accounts as the QC Form). Role none / signed out sees only the login screen.
+const canEdit = () => dataStore.auth.canEdit === true;
+const canDelete = () => dataStore.auth.canDelete === true;
+// v1.8 Verify & lock: a locked machine's definition (inputs, constants, formulas, outputs, trains) is frozen for everyone.
+const isLocked = (m) => !!(m && m.lock && m.lock.locked);
+const lockText = (m) => `Locked${m.lock.lockedBy ? ' by ' + m.lock.lockedBy : ''}${m.lock.lockedAt ? ' on ' + new Date(m.lock.lockedAt).toLocaleString() : ''}`;
+function lockBadge(m) { return isLocked(m) ? h('span', { class: 'badge locked', id: 'lock-badge', title: lockText(m) }, '🔒 ' + lockText(m)) : (m.builtin ? null : h('span', { class: 'badge draft', id: 'draft-badge' }, 'Draft')); }
+function lockSummary(m) {
+  const lines = [`Verify & lock "${m.name}"?`, '', 'Constants:', ...(m.constants || []).map((c) => `  ${c.name} = ${c.expr}`), 'Formulas:', ...(m.formulas || []).map((f) => `  ${f.name} = ${f.expr}`),
+    'Inputs: ' + (m.inputs || []).map((i) => i.name).join(', '), 'Gear trains: ' + (m.trains || []).map((t) => `${t.kind} (${t.ratio || ''})`).join(', '), '',
+    'After locking, NOBODY (admins included) can change these formulas, constants, inputs or trains.', 'Gear lists and index presets stay editable by admins. You can still copy it to a new draft.'];
+  return lines.join('\n');
+}
+function verifyAndLock(m) {
+  const mm = store.machines.find((x) => x.id === m.id); if (!mm || isLocked(mm) || !canEdit()) return;
+  const c = calc.compileMachine(mm);
+  if (!c.ok) { alert('This machine has formula errors - fix them before locking.'); return; }
+  if (!confirm(lockSummary(mm))) return;
+  mm.lock = { locked: true, lockedAt: new Date().toISOString(), lockedBy: dataStore.auth.username || 'admin' };
+  saveStore(); route();
+}
+function deleteMachine(m) {
+  const mm = store.machines.find((x) => x.id === m.id); if (!mm || mm.builtin || !canDelete()) return;
+  if (!confirm(`Delete machine "${mm.name}"${isLocked(mm) ? ' (LOCKED)' : ''} for everyone (shared database)? This cannot be undone here - export first if you want a backup.`)) return;
+  const own = Object.values(mm.ownInventories || {}).filter((iid) => store.inventories.some((x) => x.id === iid));
+  if (own.length && confirm(`Also delete its gear lists (${own.map((iid) => store.inventories.find((x) => x.id === iid).name).join(', ')})?\nOK = delete them too, Cancel = keep them.`)) store.inventories = store.inventories.filter((x) => !own.includes(x.id));
+  store.machines = store.machines.filter((x) => x.id !== mm.id); saveStore();
+  dataStore.getManual(mm.id).then((rec) => {
+    if (rec && confirm(`This machine has a manual attached (${rec.name}). Delete the manual too?\nOK = delete it, Cancel = keep it in this browser.`)) return dataStore.deleteManual(mm.id);
+  }).catch(() => {}).finally(() => { location.hash = '#/'; });
+}
+// Remove an index / differential train from a DRAFT machine (its gear list is kept unless the admin also deletes it).
+function removeTrain(m, kind) {
+  const mm = store.machines.find((x) => x.id === m.id); if (!mm || isLocked(mm) || !canDelete()) return;
+  if (!confirm(`Remove the ${kind} gear train (and its ratio formula) from "${mm.name}"?`)) return;
+  S.removeSection(mm, kind);
+  const iid = (mm.ownInventories || {})[kind];
+  if (iid) { delete mm.ownInventories[kind]; const inv = store.inventories.find((x) => x.id === iid);
+    if (inv && confirm(`Also delete its gear list "${inv.name}"?\nOK = delete it, Cancel = keep it under Gear inventories.`)) store.inventories = store.inventories.filter((x) => x !== inv); }
+  saveStore(); route();
+}
+// Delete a gear list; any machine train using it falls back to the built-in 20-88 list.
+function deleteInventory(inv) {
+  if (!canDelete()) return false;
+  const users = store.machines.filter((m) => (m.trains || []).some((t) => t.inventory === inv.id));
+  if (!confirm(`Delete gear list "${inv.name}"?${users.length ? `\nUsed by: ${users.map((m) => m.name).join(', ')} - they will use the built-in 20-88 list until you give them a new one.` : ''}`)) return false;
+  for (const m of store.machines) {
+    for (const t of m.trains || []) if (t.inventory === inv.id) t.inventory = 'legacy-20-88';
+    for (const [k, v] of Object.entries(m.ownInventories || {})) if (v === inv.id) delete m.ownInventories[k];
+  }
+  for (const o of Object.values(store.builtinOverrides || {})) for (const t of Object.values(o.trains || {})) if (t.inventory === inv.id) delete t.inventory;
+  store.inventories = store.inventories.filter((x) => x !== inv); saveStore(); return true;
+}
+function clearInventory(inv) {
+  if (!canDelete() || !confirm(`Clear every gear from "${inv.name}"? The list itself is kept (empty).`)) return false;
+  inv.gears = []; saveStore(); return true;
+}
+let auth;
+try { auth = await dataStore.init(calc.BUILTIN_MACHINES, calc.REMOVED_BUILTIN_IDS); }
+catch (e) { auth = dataStore.auth; auth.error = 'Could not reach the shared database: ' + ((e && e.message) || e); }
+let store = null;
+while (!store) {
+  while (!auth.canView) auth = await loginScreen(auth);
+  try { store = await dataStore.load(); }
+  catch (e) { auth = { ...dataStore.auth, canView: false, error: 'Could not load the shared data: ' + ((e && e.message) || e) }; }
+}
 dataStore.onProblem((p) => setTimeout(() => showStorageBanner(p), 0));
+dataStore.onSyncState((s) => showSyncState(s));
 function saveStore() { dataStore.save(store).catch((e) => console.error(e)); }
+window.__rgData = async () => { await dataStore.whenSynced(); return JSON.parse(JSON.stringify(store)); }; // read-only snapshot for the browser tests
+function showSyncState(s) {
+  let d = document.getElementById('sync-banner');
+  if (s.ok) { if (d) d.remove(); return; }
+  if (!d) { d = document.createElement('div'); d.id = 'sync-banner'; d.className = 'msg err'; const main = document.getElementById('main'); main.parentNode.insertBefore(d, main); }
+  d.textContent = 'Your last change was NOT saved to the shared database: ' + s.error + '. Reload the page to see what is saved.';
+}
+function loginScreen(a) {
+  const main = document.getElementById('main');
+  document.getElementById('nav').replaceChildren();
+  return new Promise((resolve) => {
+    const err = document.createElement('div');
+    const card = document.createElement('div'); card.className = 'card login-card'; card.id = 'login';
+    if (a.signedIn && !a.error) {
+      card.innerHTML = '<h2>No access to Change Gear</h2><p>You are signed in as <b></b>, but your account has no Change Gear access (role: none). Ask an admin to give you the viewer or admin role in QC Form admin.</p>';
+      card.querySelector('b').textContent = a.username;
+      const b = document.createElement('button'); b.textContent = 'Sign out'; b.id = 'login-signout';
+      b.onclick = async () => { await dataStore.signOut().catch(() => {}); resolve(dataStore.auth); };
+      card.append(b); main.replaceChildren(card); return;
+    }
+    card.innerHTML = '<h2>Sign in</h2><p class="muted">Use your RAM-GEAR username and PIN (the same as the QC Form).</p>' +
+      '<form class="grid-form" id="login-form"><label for="login-user">Username</label><input id="login-user" type="text" autocomplete="username"><div></div>' +
+      '<label for="login-pin">PIN</label><input id="login-pin" type="password" inputmode="numeric" autocomplete="current-password"><div></div>' +
+      '<div></div><div class="row"><button class="primary" type="submit" id="login-go">Sign in</button></div><div></div></form>';
+    card.append(err);
+    if (a.error) { err.className = 'msg err'; err.textContent = a.error; }
+    const form = card.querySelector('form');
+    form.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const go = card.querySelector('#login-go'); go.disabled = true; err.className = 'small muted'; err.textContent = 'Signing in…';
+      try { const r = await dataStore.signIn(card.querySelector('#login-user').value, card.querySelector('#login-pin').value); resolve({ ...r }); }
+      catch (e) { err.className = 'msg err'; err.id = 'login-error'; err.textContent = (e && e.message) || String(e); go.disabled = false; }
+    };
+    main.replaceChildren(card);
+    card.querySelector('#login-user').focus();
+  });
+}
+(function userBox() {
+  const bar = document.querySelector('.topbar') || document.body;
+  const d = document.createElement('div'); d.id = 'user-box'; d.className = 'user-box';
+  const who = document.createElement('span'); who.id = 'user-name'; who.textContent = dataStore.auth.username;
+  const role = document.createElement('span'); role.id = 'user-role'; role.className = 'badge ' + (canEdit() ? 'admin' : 'viewer'); role.textContent = dataStore.auth.role === 'admin' ? 'admin' : 'viewer (calculate and view only)';
+  const out = document.createElement('button'); out.id = 'sign-out'; out.textContent = 'Sign out';
+  out.onclick = async () => { await dataStore.whenSynced(); await dataStore.signOut().catch(() => {}); location.hash = '#/'; location.reload(); };
+  d.append('Signed in: ', who, ' ', role, ' ', out);
+  bar.append(d);
+})();
 (function stampVersion() {
   const brand = document.querySelector('.brand');
   const v = document.createElement('span'); v.id = 'app-version'; v.className = 'version-stamp'; v.textContent = APP_VERSION;
@@ -85,7 +198,7 @@ function renderNav() {
     ...calc.BUILTIN_MACHINES.map((m) => link(`#/m/${m.id}`, h('span', { class: 'num' }, `(${m.menu})`), m.name)),
     h('h3', {}, 'My machines'),
     ...(store.machines.length ? store.machines.map((m) => link(`#/m/${m.id}`, h('span', { class: 'num' }, '•'), m.name)) : [h('div', { class: 'muted small', style: 'padding:2px 16px' }, 'None yet')]),
-    link('#/new', h('span', { class: 'num' }, '+'), 'Add a machine'),
+    canEdit() ? link('#/new', h('span', { class: 'num' }, '+'), 'Add a machine') : null,
     h('h3', {}, 'Setup'),
     link('#/inventories', h('span', { class: 'num' }, '⚙'), 'Gear inventories'),
     link('#/io', h('span', { class: 'num' }, '⇅'), 'Import / export'),
@@ -98,6 +211,8 @@ function route() {
   const parts = (location.hash || '#/').slice(2).split('/').map(decodeURIComponent);
   try {
     if (parts[0] === 'm' && parts[1]) return renderMachine(parts[1]);
+    if (parts[0] === 'edit' && parts[1] && isLocked(findMachine(parts[1]))) return renderEditor({ id: parts[1], readOnly: true });
+    if (['edit', 'copy', 'new'].includes(parts[0]) && !canEdit()) { if (parts[0] === 'edit' && parts[1]) return renderEditor({ id: parts[1], readOnly: true }); $main.replaceChildren(msg('warn', 'Only an admin can add or change machines. You can calculate and view.')); return; }
     if (parts[0] === 'edit' && parts[1]) return renderEditor({ id: parts[1] });
     if (parts[0] === 'view' && parts[1]) return renderEditor({ id: parts[1], readOnly: true });
     if (parts[0] === 'copy' && parts[1]) return renderEditor({ copyOf: parts[1] });
@@ -159,12 +274,20 @@ function renderMachine(id) {
   const fields = {};
   const head = h('div', { class: 'card' },
     h('div', { class: 'row', style: 'justify-content:space-between' },
-      h('h2', {}, m.builtin ? `(${m.menu}) ` : '', m.name, m.builtin ? h('span', { class: 'badge builtin' }, 'original program') : h('span', { class: 'badge' }, 'my machine')),
+      h('h2', {}, m.builtin ? `(${m.menu}) ` : '', m.name, m.builtin ? h('span', { class: 'badge builtin' }, 'original program') : h('span', { class: 'badge' }, 'my machine'), lockBadge(m)),
       h('div', { class: 'row' },
-        m.builtin ? [h('button', { onclick: () => (location.hash = `#/view/${m.id}`) }, 'View formulas'), h('button', { onclick: () => (location.hash = `#/copy/${m.id}`) }, 'Copy to edit')]
-          : [h('button', { onclick: () => (location.hash = `#/edit/${m.id}`) }, 'Edit'), h('button', { onclick: () => (location.hash = `#/copy/${m.id}`) }, 'Duplicate'),
-            ...['index', 'differential'].filter((k) => S.trainOf(m, k)).map((k) => h('button', { onclick: () => editMachineGears(m, k) }, `Edit ${k} gears`))])),
+        !canEdit() ? [h('button', { onclick: () => (location.hash = `#/view/${m.id}`) }, 'View formulas')]
+          : m.builtin ? [h('button', { onclick: () => (location.hash = `#/view/${m.id}`) }, 'View formulas'), h('button', { onclick: () => (location.hash = `#/copy/${m.id}`) }, 'Copy to edit')]
+          : [isLocked(m) ? h('button', { onclick: () => (location.hash = `#/view/${m.id}`) }, 'View formulas') : h('button', { onclick: () => (location.hash = `#/edit/${m.id}`) }, 'Edit'),
+            h('button', { id: 'copy-draft', onclick: () => (location.hash = `#/copy/${m.id}`) }, isLocked(m) ? 'Copy to new draft' : 'Duplicate'),
+            isLocked(m) ? null : h('button', { class: 'primary', id: 'verify-lock', onclick: () => verifyAndLock(m) }, 'Verify & lock'),
+            ...['index', 'differential'].filter((k) => S.trainOf(m, k)).map((k) => h('button', { onclick: () => editMachineGears(m, k) }, `Edit ${k} gears`)),
+            canDelete() ? h('button', { class: 'danger', id: 'delete-machine', onclick: () => deleteMachine(m) }, 'Delete machine') : null])),
     h('p', { class: 'muted' }, m.description || ''),
+    (!m.builtin && canEdit()) ? h('div', { class: 'msg info small', id: 'lock-help' }, isLocked(m)
+      ? 'This machine is verified and locked: its formulas, constants, inputs and gear trains cannot be changed by anyone. Admins can still edit or clear its index and differential gear lists and its index presets, or use "Copy to new draft" to make a changed version.'
+      : 'Draft: admins can still edit and test it. When the results are right, click "Verify & lock" to freeze its formulas and constants for good (gear lists and presets stay editable).') : null,
+    (!m.builtin && canDelete()) ? gearTrainAdmin(m) : null,
     manualBar(m),
     m.numeric !== 'gwbasic' ? null : h('div', { class: 'small muted' }, legacyNumeric(m) === 'ieee-single'
       ? 'Arithmetic: QBasic-style single precision (setting on the start page). Switch back to GW-BASIC to match the verified results.'
@@ -235,6 +358,21 @@ function renderMachine(id) {
     });
   }
   if (Object.keys(last).length) calculate(true);
+}
+
+// Admin box on a custom machine: remove a train (drafts only) and clear / delete its gear lists (draft or locked).
+function gearTrainAdmin(m) {
+  const kinds = ['index', 'differential'].filter((k) => S.trainOf(m, k));
+  if (!kinds.length) return null;
+  return h('div', { class: 'card danger-zone', id: 'train-admin' }, h('h3', {}, 'Gear train sets (admin)'),
+    h('table', {}, kinds.map((k) => {
+      const t = S.trainOf(m, k); const inv = store.inventories.find((x) => x.id === t.inventory);
+      return h('tr', {}, h('td', {}, h('b', {}, k === 'index' ? 'Index' : 'Differential')), h('td', { class: 'small' }, inv ? `${inv.name} (${(inv.gears || []).reduce((s, g) => s + Number(g.qty || 0), 0)} gears)` : 'built-in list'),
+        h('td', {}, inv ? h('button', { class: 'danger', id: `clear-gears-${k}`, onclick: () => { if (clearInventory(inv)) route(); } }, `Clear ${k} gear list`) : null, ' ',
+          inv ? h('button', { class: 'danger', id: `delete-gears-${k}`, onclick: () => { if (deleteInventory(inv)) route(); } }, `Delete ${k} gear list`) : null, ' ',
+          isLocked(m) ? null : h('button', { class: 'danger', id: `remove-train-${k}`, onclick: () => removeTrain(m, k) }, `Remove ${k} train`)));
+    })),
+    isLocked(m) ? h('p', { class: 'small muted' }, 'Locked: trains cannot be removed, but the gear lists can be cleared or deleted.') : null);
 }
 
 // Open the machine's own gear list for a train; if the train still points at a built-in list,
@@ -372,16 +510,16 @@ function renderTrain(m, res, i, trainState, onPresetsChanged) {
         const tr = h('tr', { class: 'clickable', onclick: () => { tbody.querySelectorAll('tr').forEach((x) => x.classList.remove('sel')); tr.classList.add('sel'); st.selected = v; } },
           h('td', { class: 'num' }, k + 1), h('td', { class: 'num' }, v.A), h('td', { class: 'num' }, v.B), h('td', { class: 'num' }, v.C ?? ''), h('td', { class: 'num' }, v.D ?? ''),
           h('td', { class: 'num' }, v.ratio.toFixed(8)), h('td', { class: 'num' }, fmtPct(v.err)),
-          (isIdx && z !== null) ? h('td', {}, h('button', { class: 'small save-row-preset', title: `Save as preset for z = ${z}`, onclick: (ev) => {
+          (isIdx && z !== null && canEdit()) ? h('td', {}, h('button', { class: 'small save-row-preset', title: `Save as preset for z = ${z}`, onclick: (ev) => {
             ev.stopPropagation(); setPresets(m, P.upsertPreset(getPresets(m), P.presetFromMatch(z, v))); if (onPresetsChanged) onPresetsChanged();
           } }, 'Save as preset')) : null);
         tbody.append(tr);
         if (k === 0) { tr.classList.add('sel'); if (!st.selected) st.selected = v; searchSel = v; }
         tr.addEventListener('click', () => { searchSel = v; });
       });
-      body.append(r.list.length ? h('table', {}, h('thead', {}, h('tr', {}, [...['Rank', 'A', 'B', 'C', 'D', 'Train ratio', 'Error'], ...(isIdx && z !== null ? [''] : [])].map((x) => h('th', { class: 'num' }, x)))), tbody) : msg('warn', 'No combination within the tolerance.'),
+      body.append(r.list.length ? h('table', {}, h('thead', {}, h('tr', {}, [...['Rank', 'A', 'B', 'C', 'D', 'Train ratio', 'Error'], ...(isIdx && z !== null && canEdit() ? [''] : [])].map((x) => h('th', { class: 'num' }, x)))), tbody) : msg('warn', 'No combination within the tolerance.'),
         h('div', { class: 'small muted' }, 'Drivers A, C / driven B, D. Swapping A with C (or B with D) gives the same ratio and is listed once. Gear quantities in the inventory are respected.'),
-        (isIdx && z !== null && r.list.length) ? h('div', { class: 'row', style: 'margin-top:6px' }, h('button', { class: 'blue', id: 'save-preset', onclick: () => {
+        (isIdx && z !== null && r.list.length && canEdit()) ? h('div', { class: 'row', style: 'margin-top:6px' }, h('button', { class: 'blue', id: 'save-preset', onclick: () => {
           if (!searchSel) return;
           setPresets(m, P.upsertPreset(getPresets(m), P.presetFromMatch(z, searchSel)));
           if (onPresetsChanged) onPresetsChanged();
@@ -463,14 +601,14 @@ function renderEditor({ id, copyOf, readOnly }) {
     const m = findMachine(id);
     if (!m) { $main.replaceChildren(msg('err', 'Machine not found')); return; }
     draft = clone(m);
-    if (m.builtin) readOnly = true; else S.normalizeIndex(draft);
+    if (m.builtin || !canEdit() || isLocked(m)) readOnly = true; if (!m.builtin) S.normalizeIndex(draft);
   } else if (copyOf) {
     const m = findMachine(copyOf);
     draft = clone(m);
     draft.id = 'custom-' + Math.random().toString(36).slice(2, 9);
     draft.name = m.name + ' (my copy)';
     draft.builtin = false;
-    delete draft.menu;
+    delete draft.menu; delete draft.lock;
     if (m.builtin) draft.description = `Copied from original program (${m.menu}). ${m.description}`;
     delete draft.ownInventories;
     S.normalizeIndex(draft);
@@ -642,22 +780,16 @@ function renderEditor({ id, copyOf, readOnly }) {
     saveStore();
     location.hash = `#/m/${draft.id}`;
   } }, 'Save machine');
+  const locked = !isNew && isLocked(draft);
   const actions = h('div', { class: 'row' },
-    ro ? h('button', { class: 'primary', onclick: () => (location.hash = `#/copy/${draft.id}`) }, 'Copy to edit') : saveBtn,
+    ro ? (canEdit() ? h('button', { class: 'primary', id: 'copy-draft', onclick: () => (location.hash = `#/copy/${draft.id}`) }, locked ? 'Copy to new draft' : 'Copy to edit') : null) : saveBtn,
     h('button', { onclick: () => history.back() }, ro ? 'Back' : 'Cancel'),
-    (!ro && !isNew) ? h('button', { onclick: () => {
-      if (!confirm(`Delete "${draft.name}" from this browser? (Export first if you want a backup.)`)) return;
-      const own = Object.values(draft.ownInventories || {}).filter((iid) => store.inventories.some((x) => x.id === iid));
-      if (own.length && confirm(`Also delete its gear lists (${own.map((iid) => store.inventories.find((x) => x.id === iid).name).join(', ')})?\nOK = delete them too, Cancel = keep them.`)) store.inventories = store.inventories.filter((x) => !own.includes(x.id));
-      store.machines = store.machines.filter((m) => m.id !== draft.id); saveStore();
-      const delId = draft.id;
-      dataStore.getManual(delId).then((rec) => {
-        if (rec && confirm(`This machine has a manual attached (${rec.name}). Delete the manual too?\nOK = delete it, Cancel = keep it in this browser.`)) return dataStore.deleteManual(delId);
-      }).catch(() => {}).finally(() => { location.hash = '#/'; });
-    } }, 'Delete machine') : null);
+    (!isNew && !draft.builtin && canEdit() && !locked && !ro) ? h('button', { class: 'blue', id: 'verify-lock', onclick: () => verifyAndLock(draft) }, 'Verify & lock (saved version)') : null,
+    (!isNew && !draft.builtin && canDelete() && store.machines.some((x) => x.id === draft.id)) ? h('button', { class: 'danger', id: 'delete-machine', onclick: () => deleteMachine(draft) }, 'Delete machine') : null);
   $main.replaceChildren(
-    h('div', { class: 'card' }, h('h2', {}, ro ? `Formulas of ${draft.name}` : (isNew ? 'Add a machine' : `Edit ${draft.name}`), ro ? h('span', { class: 'badge builtin' }, 'read-only') : null),
-      ro ? h('p', { class: 'muted' }, 'Original programs cannot be changed. Use "Copy to edit" to make your own version.') : h('p', { class: 'muted' }, 'Give the machine a name and type its index constant and differential constant. The input form, ratios and gear searches are built automatically.'),
+    h('div', { class: 'card' }, h('h2', {}, ro ? `Formulas of ${draft.name}` : (isNew ? 'Add a machine' : `Edit ${draft.name}`), ro ? h('span', { class: 'badge builtin' }, 'read-only') : null, isNew ? h('span', { class: 'badge draft' }, 'Draft') : lockBadge(draft)),
+      locked ? h('p', { class: 'muted', id: 'locked-note' }, `${lockText(draft)}. Its formulas, constants, inputs and gear trains cannot be changed by anyone, admins included. Gear lists and index presets can still be edited by an admin from the machine page; use "Copy to new draft" for a changed version.`) : null,
+      locked ? null : ro ? h('p', { class: 'muted' }, canEdit() ? 'Original programs cannot be changed. Use "Copy to edit" to make your own version.' : 'Read-only: only an admin can change machines.') : h('p', { class: 'muted' }, 'Give the machine a name and type its index constant and differential constant. The input form, ratios and gear searches are built automatically.'),
       actions),
     h('div', { class: 'flex2' }, h('div', { class: 'editor-main', style: 'flex:3 1 640px' }, sections), h('div', { style: 'flex:1 1 300px' }, h('div', { class: 'card', style: 'position:sticky; top:10px' }, h('h3', {}, 'Check & preview'), status, preview))));
   draw();
@@ -693,11 +825,12 @@ function renderInventories(editId) {
     h('p', { class: 'muted' }, 'A gear inventory is the set of change gears you have for a machine (tooth counts and how many of each). The "best from inventory" search only uses these gears and respects the quantities.'),
     h('table', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Gears'), h('th', {}, '')),
       allInventories().map((inv) => h('tr', {}, h('td', {}, inv.name, inv.builtin ? h('span', { class: 'badge builtin' }, 'built-in') : null), h('td', { class: 'small' }, gearListText(inv.gears)),
-        h('td', {}, inv.builtin ? h('button', { onclick: () => copyInv(inv) }, 'Copy to edit') : [h('button', { onclick: () => (location.hash = `#/inventories/${inv.id}`) }, 'Edit'), ' ', h('button', { onclick: () => copyInv(inv) }, 'Duplicate')])))),
-    h('div', { style: 'margin-top:8px' }, h('button', { class: 'primary', onclick: () => { const inv = { id: 'inv-' + Math.random().toString(36).slice(2, 8), name: 'My gear box', gears: [] }; store.inventories.push(inv); saveStore(); location.hash = `#/inventories/${inv.id}`; } }, '+ New inventory')));
+        h('td', {}, !canEdit() ? null : inv.builtin ? h('button', { onclick: () => copyInv(inv) }, 'Copy to edit') : [h('button', { onclick: () => (location.hash = `#/inventories/${inv.id}`) }, 'Edit'), ' ', h('button', { onclick: () => copyInv(inv) }, 'Duplicate'),
+          ...(canDelete() ? [' ', h('button', { class: 'danger inv-clear', onclick: () => { if (clearInventory(inv)) route(); } }, 'Clear'), ' ', h('button', { class: 'danger inv-del', onclick: () => { if (deleteInventory(inv)) route(); } }, 'Delete')] : [])])))),
+    !canEdit() ? null : h('div', { style: 'margin-top:8px' }, h('button', { class: 'primary', onclick: () => { const inv = { id: 'inv-' + Math.random().toString(36).slice(2, 8), name: 'My gear box', gears: [] }; store.inventories.push(inv); saveStore(); location.hash = `#/inventories/${inv.id}`; } }, '+ New inventory')));
   const kids = [list];
   const inv = store.inventories.find((x) => x.id === editId);
-  if (inv) kids.unshift(inventoryEditor(inv));
+  if (inv && canEdit()) kids.unshift(inventoryEditor(inv));
   $main.replaceChildren(...kids);
 }
 // Per-gear table editor: tooth count, quantity, note; quick entry; CSV import / export.
@@ -770,7 +903,7 @@ function inventoryEditor(inv) {
     csvPreview, info,
     h('div', { class: 'row' }, h('button', { class: 'primary', onclick: save }, 'Save'),
       h('button', { onclick: () => (location.hash = '#/inventories') }, 'Cancel'),
-      h('button', { onclick: () => { if (confirm(`Delete gear list "${inv.name}"?`)) { store.inventories = store.inventories.filter((x) => x !== inv); saveStore(); location.hash = '#/inventories'; } } }, 'Delete')));
+      !canDelete() ? null : h('button', { class: 'danger', id: 'inv-delete', onclick: () => { if (deleteInventory(inv)) location.hash = '#/inventories'; } }, 'Delete gear list')));
   card._showCsv = showCsv;
   window.__rgShowCsv = showCsv; // used by the browser test
   drawRows();
@@ -788,7 +921,7 @@ function renderIO() {
   const inclMan = h('input', { type: 'checkbox', id: 'incl-manuals' });
   const expMsg = h('div', {});
   const file = h('input', { type: 'file', accept: '.json,application/json' });
-  const mode = h('select', {}, h('option', { value: 'merge' }, 'Add / update (keep my other machines)'), h('option', { value: 'replace' }, 'Replace all my machines and inventories'));
+  const mode = h('select', {}, h('option', { value: 'merge' }, 'Add / update (keep my other machines)'), h('option', { value: 'replace' }, 'Replace ALL shared machines and gear lists'));
   file.addEventListener('change', async () => {
     result.replaceChildren();
     const f = file.files[0];
@@ -809,8 +942,19 @@ function renderIO() {
       result.replaceChildren(msg(manMsg ? 'warn' : 'ok', `Imported ${n}.${manMsg}`));
     } }, 'Import now'));
   });
-  $main.replaceChildren(h('div', { class: 'card' }, h('h2', {}, 'Import / export'),
-    h('p', {}, 'Your machines, gear inventories and gear-search settings for the original programs are saved in this browser. Export them to a file for backup or to move them to another PC.'),
+  const upMsg = h('div', { id: 'upload-local-msg' });
+  const uploadCard = (canEdit() && dataStore.hasLocalData()) ? h('div', { class: 'card', id: 'upload-local' }, h('h3', {}, 'Upload my local data to the shared database'),
+    h('p', {}, 'This PC still has machines, gear lists or presets saved by the old version (before logins). Upload them once so everyone sees them. Machines with the same name in the shared database are replaced.'),
+    dataStore.localDataUploaded() ? h('p', { class: 'small muted' }, 'Already uploaded from this PC once. Uploading again overwrites shared changes made since with this PC\'s old copy.') : null,
+    h('button', { class: 'primary', id: 'upload-local-go', onclick: async (ev) => {
+      if (!confirm('Upload this PC\'s old saved data to the shared database for everyone?')) return;
+      ev.target.disabled = true; upMsg.replaceChildren(h('span', { class: 'small muted' }, 'Uploading…'));
+      try { const n = await dataStore.uploadLocalData(store); renderNav(); upMsg.replaceChildren(msg(document.getElementById('sync-banner') ? 'err' : 'ok', `Uploaded ${n.machines} machine(s), ${n.inventories} gear list(s), ${n.builtins} original-program setting(s).`)); }
+      catch (e) { upMsg.replaceChildren(msg('err', 'Upload failed: ' + ((e && e.message) || e))); }
+      ev.target.disabled = false;
+    } }, 'Upload my local data to the shared database'), upMsg) : null;
+  $main.replaceChildren(uploadCard, h('div', { class: 'card' }, h('h2', {}, 'Import / export'),
+    h('p', {}, 'Machines, their gear lists and presets, and gear-search settings for the original programs are kept in the shared RAM-GEAR database. Export them to a file for a backup.'),
     h('div', { class: 'row' }, h('button', { class: 'primary', id: 'export-json', onclick: async () => {
       let man;
       expMsg.replaceChildren();
@@ -818,7 +962,7 @@ function renderIO() {
       const bundle = calc.makeBundle({ machines: store.machines, inventories: store.inventories, builtinOverrides: store.builtinOverrides, manuals: man });
       downloadText(`ramgear-machines-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(bundle, null, 2), 'application/json');
     } }, 'Export to file'), h('label', {}, inclMan, ' Include manuals (larger file)')), expMsg,
-    h('h3', { style: 'margin-top:18px' }, 'Import from file'), h('div', { class: 'row' }, file, mode), result));
+    canEdit() ? h('h3', { style: 'margin-top:18px' }, 'Import from file') : null, canEdit() ? h('div', { class: 'row' }, file, mode) : null, result));
 }
 
 // ------------------------------------------------------------------ help
@@ -853,12 +997,12 @@ function manualBar(m) {
   const note = h('span', { class: 'small muted', id: 'manual-status' });
   const draw = (rec, err) => {
     bar.replaceChildren(h('b', {}, 'Manual: '), file,
-      h('button', { id: 'manual-attach', onclick: () => file.click(), disabled: err ? true : undefined }, rec ? 'Replace manual (PDF)' : 'Attach manual (PDF)'),
+      canEdit() ? h('button', { id: 'manual-attach', onclick: () => file.click(), disabled: err ? true : undefined }, rec ? 'Replace manual (PDF)' : 'Attach manual (PDF)') : null,
       rec ? h('button', { id: 'manual-open', onclick: () => openManual(m) }, 'Open manual') : null,
-      rec ? h('button', { id: 'manual-remove', onclick: async () => { if (!confirm(`Remove the manual "${rec.name}" from this browser?`)) return; await dataStore.deleteManual(m.id); draw(null); } }, 'Remove') : null,
+      (rec && canDelete()) ? h('button', { id: 'manual-remove', onclick: async () => { if (!confirm(`Remove the manual "${rec.name}" from this browser?`)) return; await dataStore.deleteManual(m.id); draw(null); } }, 'Remove') : null,
       note);
     note.className = err ? 'small err-text' : 'small muted';
-    note.textContent = err ? `Manuals can't be stored in this browser: ${err}. Calculations still work.` : rec ? `${rec.name} (${Math.max(1, Math.round(rec.size / 1024))} KB) - kept in this browser only, not on the website.` : 'Kept in this browser only, never uploaded.';
+    note.textContent = err ? `Manuals can't be stored in this browser: ${err}. Calculations still work.` : rec ? `${rec.name} (${Math.max(1, Math.round(rec.size / 1024))} KB) - kept in this browser only, not on the website or in the shared database.` : (canEdit() ? 'Kept in this browser only, never uploaded.' : 'No manual on this PC.');
   };
   file.addEventListener('change', async () => {
     const f = file.files[0]; file.value = '';
@@ -911,6 +1055,14 @@ function presetEditor(m, onChange) {
   };
   const cell = (r, key, w) => { const el = h('input', { type: 'text', value: r[key] === undefined ? '' : String(r[key]), class: `preset-${key}`, style: `width:${w}px`, inputmode: key === 'note' ? undefined : 'numeric' }); el.addEventListener('input', () => { r[key] = el.value; }); return el; };
   const draw = () => {
+    if (!canEdit()) {
+      card.replaceChildren(h('h3', {}, 'Index gear presets'),
+        rows.length ? h('table', { id: 'preset-table' }, h('thead', {}, h('tr', {}, ['z', 'A', 'B', 'C', 'D', 'Note'].map((x) => h('th', {}, x)))),
+          h('tbody', {}, rows.map((r) => h('tr', {}, ['z', 'A', 'B', 'C', 'D'].map((k) => h('td', { class: 'num' }, r[k] ?? '')), h('td', { class: 'small' }, r.note || ''))))) : h('p', { class: 'small muted' }, 'No presets saved for this machine.'),
+        h('div', { class: 'row', style: 'margin:6px 0' }, h('button', { onclick: () => downloadText(`${m.name.replace(/[^\w -]+/g, '')} index presets.csv`, P.presetsToCsv(getPresets(m)), 'text/csv') }, 'Export CSV'),
+          h('span', { class: 'small muted' }, 'Only an admin can add or change presets.')));
+      return;
+    }
     const keepInfo = [...info.childNodes];
     card.replaceChildren(h('h3', {}, 'Index gear presets'),
       h('p', { class: 'small muted' }, 'Saved index gear sets for a tooth count z. When the part\'s z matches, the set is shown first, marked Preset. Gears do not have to be in the gear list - for a prime z like 101 you need a 101-tooth gear. Leave C and D empty for a 2-gear A/B set.'),

@@ -2,10 +2,6 @@
 
 Browser version of Ram-Gear's BASIC gear hobbing menu (FD-500 Overton, Fauter and FO-10 TOS differentials, hob RPM & cutting time), with per-machine gear inventories, ranked gear-combination matches, and custom machine definitions.
 
-Version v1.6.2 (2026-10-13): teal strip (App Hub tile colour #2E7386, 5 px) on top of every result card.
-
-Version v1.6.1 (2026-10-13): built-in results pages now use the same white layout as added machines (ranked gear matches, collapsed original screen); -0.00000 % fixed.
-
 Version v1.6 (2026-10-13):
 
 ### Index gear presets
@@ -46,3 +42,13 @@ v1.3 (2026-10-13): the Barber Colman index and feed, OFA-71A TOS and FD-320 Over
 **Offline:** download `ramgear-standalone.html` and open it in any browser — no install needed. Use Export to back up gear lists and machines (JSON/CSV).
 
 See `notes.md` for details and verification against the original `source.bas`.
+
+## v1.7 logins and shared data
+Sign in with your RAM-GEAR username and PIN (same as the QC Form). Machines, their index and differential gear lists and index presets are kept in the shared RAM-GEAR database (Supabase), so every PC sees the same data. Admins can add, edit and delete; viewers can calculate and view. Manual PDFs and last inputs stay on each PC. Details and the table mapping: notes.md, section 00.
+
+## v1.8 Verify & lock and admin delete
+New machines start as a **Draft**. When the results are right, an admin clicks **Verify & lock**: after that its formulas,
+constants, inputs and gear trains can't be changed by anyone (a Locked badge shows who locked it and when). Locked machines
+can still be calculated and copied ("Copy to new draft"), and admins can still edit, clear or delete their gear lists and presets.
+Admins (QC Form login) can delete machines (drafts or locked; not the built-ins), remove a train from a draft, and clear or
+delete gear lists. Every delete asks first; viewers never see these buttons. Details and a proposed database trigger: app/LOCKING.md.

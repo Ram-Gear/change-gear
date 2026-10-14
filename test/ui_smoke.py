@@ -3,6 +3,7 @@ Start the server first:  python3 -m http.server 8000   (in the app folder)
 Run:                     python3 test/ui_smoke.py [http://127.0.0.1:8000/] [screenshot-dir]"""
 import sys, json
 from playwright.sync_api import sync_playwright
+import os, sys as _s; _s.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import cgmock
 
 URL = sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8000/'
 SHOTS = sys.argv[2] if len(sys.argv) > 2 else None
@@ -14,7 +15,7 @@ EX = {
 }
 with sync_playwright() as p:
     b = p.chromium.launch()
-    pg = b.new_page(viewport={'width': 1300, 'height': 1000})
+    pg = b.new_page(viewport={'width': 1300, 'height': 1000}); cgmock.install(pg)
     pg.on('console', lambda m: errors.append('console.' + m.type + ': ' + m.text) if m.type in ('error', 'warning') else None)
     pg.on('pageerror', lambda e: errors.append('pageerror: ' + str(e)))
     pg.goto(URL); pg.wait_for_selector('nav a')

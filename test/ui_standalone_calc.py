@@ -3,6 +3,7 @@ routine (and a custom machine); assert a ratio shows. Also asserts a blank form 
 in-view error with the bad fields marked. Run: python3 test/ui_standalone_calc.py [path-or-url]"""
 import sys, os
 from playwright.sync_api import sync_playwright
+import os, sys as _s; _s.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import cgmock
 here = os.path.dirname(os.path.abspath(__file__))
 URL = sys.argv[1] if len(sys.argv) > 1 else 'file://' + os.path.join(here, '..', 'ramgear-standalone.html')
 EX = {
@@ -16,7 +17,7 @@ def ratio_shown(pg):
     vals = [v.strip() for v in pg.locator('.results-table td.big').all_inner_texts()]
     return vals if vals and all(vals) else None
 with sync_playwright() as p:
-    b = p.chromium.launch(); pg = b.new_page(viewport={'width': 1366, 'height': 657})
+    b = p.chromium.launch(); pg = b.new_page(viewport={'width': 1366, 'height': 657}); cgmock.install(pg)
     pg.on('pageerror', lambda e: errors.append(str(e)))
     pg.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
     for mid, vals in EX.items():
@@ -72,7 +73,7 @@ with sync_playwright() as p:
     # browser blocks saved data (Edge/Chrome site-data settings): Calculate must still give a ratio
     ctx = b.new_context(viewport={'width': 1366, 'height': 657})
     ctx.add_init_script("Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Access is denied for this document.','SecurityError')}})")
-    pg2 = ctx.new_page()
+    pg2 = ctx.new_page(); cgmock.install(pg2)
     for mid, vals in EX.items():
         pg2.goto(URL + '#/m/' + mid); pg2.wait_for_selector('form.grid-form')
         for k, val in vals.items():

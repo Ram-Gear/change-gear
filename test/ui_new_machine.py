@@ -3,12 +3,13 @@ lists, Edit gear buttons, per-gear table, quick add, CSV import preview (replace
 rename and delete. Run: python3 test/ui_new_machine.py [url]   (serve the folder first)"""
 import sys, json
 from playwright.sync_api import sync_playwright
+import os, sys as _s; _s.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import cgmock
 URL = sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8000/'
 errors, out = [], {}
 def check(c, m):
     if not c: errors.append('FAIL: ' + m)
 with sync_playwright() as p:
-    b = p.chromium.launch(); pg = b.new_page(viewport={'width': 1300, 'height': 1000})
+    b = p.chromium.launch(); pg = b.new_page(viewport={'width': 1300, 'height': 1000}); cgmock.install(pg)
     pg.on('pageerror', lambda e: errors.append('pageerror: ' + str(e)))
     pg.on('console', lambda m: errors.append('console.error: ' + m.text) if m.type == 'error' else None)
     pg.on('dialog', lambda d: d.accept())
@@ -20,7 +21,7 @@ with sync_playwright() as p:
     pg.wait_for_selector('.msg.ok:has-text("Formulas check out")')
     pg.fill('#machine-name', 'Test Hobber')
     pg.click('button:has-text("Save machine")'); pg.wait_for_selector('form.grid-form')
-    st = pg.evaluate("JSON.parse(localStorage.getItem('ramgear.changegear.v1'))")
+    st = pg.evaluate("window.__rgData()")
     names = sorted(i['name'] for i in st['inventories'])
     out['inventories'] = names
     check(names == ['Test Hobber differential gears', 'Test Hobber index gears'], 'own gear lists created')
@@ -53,7 +54,7 @@ with sync_playwright() as p:
     pg.click('button:has-text("Add to my list")')
     check(pg.locator('#gear-table tbody tr').count() == 6, 'CSV added to list')
     pg.click('#inv-editor button:has-text("Save")'); pg.wait_for_timeout(200)
-    st = pg.evaluate("JSON.parse(localStorage.getItem('ramgear.changegear.v1'))")
+    st = pg.evaluate("window.__rgData()")
     g = next(i for i in st['inventories'] if i['name'] == 'Test Hobber index gears')['gears']
     out['indexGears'] = g
     check(g == [{'teeth': 20, 'qty': 1, 'note': 'chipped tooth'}, {'teeth': 24, 'qty': 1}, {'teeth': 30, 'qty': 1}, {'teeth': 36, 'qty': 1}, {'teeth': 40, 'qty': 2, 'note': 'spare'}, {'teeth': 48, 'qty': 1}], 'saved gears with notes')
@@ -66,7 +67,7 @@ with sync_playwright() as p:
     # rename machine -> lists renamed
     pg.goto(URL + '#/edit/' + m['id']); pg.wait_for_selector('#machine-name')
     pg.fill('#machine-name', 'Hobber Two'); pg.click('button:has-text("Save machine")'); pg.wait_for_selector('form.grid-form')
-    st = pg.evaluate("JSON.parse(localStorage.getItem('ramgear.changegear.v1'))")
+    st = pg.evaluate("window.__rgData()")
     check(sorted(i['name'] for i in st['inventories']) == ['Hobber Two differential gears', 'Hobber Two index gears'], 'lists renamed')
     # copy of Fauter: add index simply
     pg.goto(URL + '#/copy/fauter-diff'); pg.wait_for_selector('#simple-index')
@@ -78,7 +79,7 @@ with sync_playwright() as p:
     # delete -> also deletes lists (dialogs accepted)
     pg.goto(URL + '#/edit/' + m['id']); pg.wait_for_selector('button:has-text("Delete machine")')
     pg.click('button:has-text("Delete machine")'); pg.wait_for_timeout(300)
-    st = pg.evaluate("JSON.parse(localStorage.getItem('ramgear.changegear.v1'))")
+    st = pg.evaluate("window.__rgData()")
     check(not any(i['name'].startswith('Hobber Two') for i in st['inventories']), 'lists deleted with machine')
     b.close()
 print(json.dumps(out, indent=1))
