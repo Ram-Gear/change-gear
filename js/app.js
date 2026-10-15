@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 import * as dataStore from './store.js';
-export const APP_VERSION = 'RAM-GEAR web v1.8.2 (2026-10-15)';
+export const APP_VERSION = 'RAM-GEAR web v1.8.3 (2026-10-15)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 function showStorageBanner(problem) {
@@ -117,7 +117,7 @@ function loginScreen(a) {
       '<div id="login-msg-slot"></div>' +
       '<button class="rg-btn" type="submit" id="login-go">Sign in</button>' +
       '<p class="rg-login-foot" id="login-admin-note">Use the same username and PIN as the QC Form. 🔒 Adding or changing machines needs an admin login; everyone else can calculate and view.</p>' +
-      '<p class="rg-login-rev">' + APP_VERSION + '</p></form>';
+      '<p class="rg-login-foot"><a href="help.html" target="_blank" rel="noopener" id="login-help-page">Help &amp; how-to guide</a></p>' + '<p class="rg-login-rev">' + APP_VERSION + '</p></form>';
     card.querySelector('#login-msg-slot').append(err);
     if (a.error) { err.className = 'msg err'; err.textContent = a.error; }
     const form = card.querySelector('form');
@@ -217,6 +217,7 @@ function renderNav() {
     link('#/inventories', h('span', { class: 'num' }, '⚙'), 'Gear inventories'),
     link('#/io', h('span', { class: 'num' }, '⇅'), 'Import / export'),
     link('#/help', h('span', { class: 'num' }, '?'), 'Formula help'),
+    h('a', { href: 'help.html', target: '_blank', rel: 'noopener', id: 'nav-help-page' }, h('span', { class: 'num' }, '📖'), 'Help & how-to'),
   );
 }
 

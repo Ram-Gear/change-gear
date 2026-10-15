@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Change Gear - Help</title>
+<link rel="icon" type="image/svg+xml" href="img/change-gear.svg">
+<link rel="stylesheet" href="styles.css">
+<style>
+.help-page{max-width:980px;margin:0 auto;padding:18px 18px 60px}
+.help-page .card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin-bottom:14px}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sec-head h2,.sec-head h3{margin:6px 0}
+a.ask{font-size:13px;font-weight:600;color:#2E7386;white-space:nowrap}
+.step{border-top:1px solid var(--line);padding-top:6px;margin-top:10px}
+.toc a{margin-right:14px}
+code{background:#f3f5f6;padding:1px 4px;border-radius:3px}
+.try{border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:12px 0;background:#fff}
+.try input[type=text],.try input:not([type]){max-width:420px;width:auto}
+.try .gears input{width:64px}
+.try-result{margin-top:8px;padding:8px 10px;border-radius:6px;display:none}
+.try-result.ok{display:block;background:#e7f5ec;border:1px solid #1e7b34}
+.try-result.bad{display:block;background:#fdecea;border:1px solid #b3261e}
+</style></head>
+<body>
+<header class="topbar"><div class="brand"><img class="brand-icon" src="img/change-gear.svg" alt="" width="32" height="32">RAM-GEAR <span>Change Gear - Help</span></div>
+<div class="topnote"><a href="./" style="color:#fff">← Back to the app</a></div></header>
+<main class="help-page">
+<p class="toc"><a href="#what">What it does</a><a href="#screens">Screens</a><a href="#tasks">Tasks</a><a href="#trouble">Troubleshooting</a><a href="#formulas">Formula guide</a><a href="#practice">Try it</a></p>
+<section class="card" id="what"><div class="sec-head"><h2>What the app does</h2><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20In%20Ram-Gear&#x27;s%20Change%20Gear%20app%2C%20what%20does%20the%20app%20do%20and%20who%20is%20it%20for%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+
+<p>Change Gear works out the change gears for gear hobbing machines: the <b>index</b> ratio, the <b>differential</b> ratio for helical gears, feed ratios, and hob RPM and cutting time. It replaces the old RAM-GEAR BASIC menu program and gives exactly the same numbers for the routines kept from it (FD-500 Overton, Fauter, TOS FO-10, hob RPM &amp; cutting time).</p>
+<p>For every ratio it searches the gears you really have (a <b>gear inventory</b> per machine) and lists the best A/B × C/D combinations with their error. You can add your own machines from their constants and formulas.</p>
+<p>Everyone signs in with their QC Form username and PIN. <b>Viewers</b> can calculate and look at everything; <b>admins</b> can also add, change, lock and delete machines, gear lists and presets. Machines, gear lists and presets are shared by every PC; machine manuals (PDFs) stay on the PC they were attached on.</p>
+</section>
+<section class="card" id="screens"><div class="sec-head"><h2>The screens</h2><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20In%20Ram-Gear&#x27;s%20Change%20Gear%20app%2C%20can%20you%20explain%20the%20different%20screens%20and%20menu%20items%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+
+<ul>
+<li><b>Sign-in</b>: username and PIN, the same as the QC Form.</li>
+<li><b>Original program</b> (menu, top): the built-in routines from the old BASIC program. They cannot be changed, only copied.</li>
+<li><b>My machines</b>: machines added by an admin. "None yet" means the shared database has no added machines. Admins see <b>+ Add a machine</b>; everyone else sees a greyed <b>🔒 Sign in as admin to add machines</b> line.</li>
+<li><b>Machine page</b>: the input form, <b>Calculate</b>, the results, and the gear matches for each gear train, plus index presets and the manual.</li>
+<li><b>Gear inventories</b>: every gear list (tooth count, how many, note), with CSV import/export.</li>
+<li><b>Import / export</b>: back up or restore machines and gear lists as JSON, and the one-time upload of data saved before logins.</li>
+<li><b>Formula help</b> (in the app) and this page.</li>
+</ul>
+</section>
+<section class="card" id="tasks"><div class="sec-head"><h2>Common tasks, step by step</h2><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20In%20Ram-Gear&#x27;s%20Change%20Gear%20app%2C%20what%20are%20the%20most%20common%20tasks%20and%20how%20do%20I%20do%20them%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<div class="step"><div class="sec-head"><h3>Sign in</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20How%20do%20I%20sign%20in%20to%20Ram-Gear&#x27;s%20Change%20Gear%20app%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<ol><li>Open <a href="./">the app</a>.</li><li>Type your QC Form username and your PIN, then click <b>Sign in</b>.</li><li>Your name and role (admin or viewer) show at the top right. <b>Sign out</b> is next to them.</li></ol>
+</div>
+<div class="step"><div class="sec-head"><h3>Calculate on a built-in routine</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20How%20do%20I%20calculate%20change%20gears%20on%20the%20built-in%20FD-500%2C%20Fauter%2C%20TOS%20FO-10%20and%20hob%20RPM%20routines%20in%20Ram-Gear&#x27;s%20Change%20Gear%20app%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<ol><li>Click the routine under <b>Original program</b>: (3) FD-500 Overton, (4) Fauter, (7) TOS FO-10 or (9) Hob RPM &amp; cutting time.</li>
+<li>Fill in every box. The grey "e.g." text is only an example; <b>Fill blanks with example values</b> copies the examples in. Pick inch or metric where asked.</li>
+<li>Click <b>Calculate</b>. A box with a red border means that value is missing or not a number.</li>
+<li>The ratios show in the Results box. Below them are the gear matches A/B × C/D, best first, with their error. The TOS FO-10 also needs the number of teeth (z) for its index ratio 24 × starts ÷ z.</li>
+<li><b>Print sheet</b> prints the job.</li></ol>
+<p class="small">Example: TOS FO-10, helix 30°, module 8, 1 start, metric gives the differential ratio <code>.7460438</code>; z = 40 gives the index ratio <code>.6</code>.</p>
+</div>
+<div class="step"><div class="sec-head"><h3>Gear inventories and CSV upload</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20How%20do%20I%20set%20up%20gear%20inventories%20and%20upload%20a%20CSV%20gear%20list%20in%20Ram-Gear&#x27;s%20Change%20Gear%20app%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<ol><li>Admins: on a machine page click <b>Edit index gears</b> or <b>Edit differential gears</b>, or open <b>Gear inventories</b> and click <b>+ New inventory</b>.</li>
+<li>Type tooth counts in <b>Quick add</b>, e.g. <code>20, 24, 30 x2, 40-48</code> ("x2" = two of them, "40-48" = every count from 40 to 48), or edit the table: tooth count, quantity, note.</li>
+<li><b>Import CSV</b>: columns <code>teeth, qty, note</code> (qty defaults to 1; a header row is optional; comma or semicolon; a single column of tooth counts also works). Check the preview, then pick <b>Replace my list</b> or <b>Add to my list</b>. <b>Download sample CSV</b> gives a file to fill in.</li>
+<li>Click <b>Save</b>. The gear search only uses gears in the list and never uses more of a gear than you have.</li></ol>
+</div>
+<div class="step"><div class="sec-head"><h3>Index presets</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20How%20do%20index%20gear%20presets%20work%20in%20Ram-Gear&#x27;s%20Change%20Gear%20app%2C%20for%20example%20for%20a%20prime%20number%20of%20teeth%20like%20101%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<p>A preset is a saved index gear set for one tooth count z. When the part's z matches, the preset is shown first, marked Preset.</p>
+<ol><li>Admins: on the machine page, under <b>Index gear presets</b>, click <b>+ Add preset</b>, enter z and A, B (and C, D for a 4-gear set), then <b>Save presets</b>. Or click <b>Save as preset</b> next to a search result.</li>
+<li>Presets can also be imported/exported as CSV with columns <code>z, A, B, C, D, note</code>.</li></ol>
+<p class="small">For a prime z such as 101 nothing smaller divides into it, so the set must include a 101-tooth gear (e.g. 24/101). The app reminds you when that happens.</p>
+</div>
+<div class="step"><div class="sec-head"><h3>Machine manuals (PDF)</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20How%20do%20I%20attach%20and%20open%20a%20machine%20manual%20PDF%20in%20Ram-Gear&#x27;s%20Change%20Gear%20app%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<ol><li>Admins: on the machine page click <b>Attach manual (PDF)</b> and pick the file.</li><li>Anyone on that PC: <b>Open manual</b>.</li></ol>
+<p class="small">The PDF is kept in that PC's browser only. It is not put on the website or in the shared database. On another PC attach it again, or include manuals in an export file.</p>
+</div>
+<div class="step"><div class="sec-head"><h3>Add a machine (admin)</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20How%20do%20I%20add%20a%20new%20machine%20with%20its%20index%20and%20differential%20constants%20in%20Ram-Gear&#x27;s%20Change%20Gear%20app%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<ol><li>Click <b>+ Add a machine</b>.</li><li>Give it a name and type its <b>index constant</b> and <b>differential constant</b>. The formulas are already built: index = constant × K ÷ Z, and a Fauter / FD-500 style differential. Remove the one the machine does not have.</li>
+<li>Pick each train's gear list (by default the machine gets its own list, starting with one of each 20-88).</li><li>The right-hand box checks the formulas and previews them with the example values. Click <b>Save machine</b>.</li>
+<li>Different formulas: open <b>Advanced</b> at the bottom (see the formula guide below).</li></ol>
+</div>
+<div class="step"><div class="sec-head"><h3>Verify &amp; lock (admin)</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20What%20does%20Verify%20and%20lock%20do%20in%20Ram-Gear&#x27;s%20Change%20Gear%20app%2C%20and%20what%20can%20still%20be%20changed%20afterwards%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<p>New machines are a <b>Draft</b>. When its results match a job you already know, click <b>Verify &amp; lock</b>; the confirm box lists its constants and formulas.</p>
+<p>After locking, nobody, admins included, can change its formulas, constants, inputs or gear trains. A <b>Locked</b> badge shows who locked it and when. It can still be calculated, copied with <b>Copy to new draft</b>, and admins can still edit, clear or delete its gear lists and presets.</p>
+</div>
+<div class="step"><div class="sec-head"><h3>Delete (admin)</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20How%20do%20I%20delete%20a%20machine%2C%20a%20gear%20train%20or%20a%20gear%20list%20in%20Ram-Gear&#x27;s%20Change%20Gear%20app%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<ul><li><b>Delete machine</b> (red, on the machine page): drafts and locked machines. Built-in routines cannot be deleted. It also offers to delete its gear lists and manual.</li>
+<li><b>Gear train sets (admin)</b> box: <b>Remove index/differential train</b> (drafts only), <b>Clear</b> or <b>Delete</b> its gear lists (also on locked machines).</li>
+<li><b>Gear inventories</b>: Clear or Delete any list. A train whose list is deleted uses the built-in 20-88 list.</li></ul>
+<p class="small">Every delete asks first. Export a backup if you might want it back.</p>
+</div>
+<div class="step"><div class="sec-head"><h3>Import / export</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20How%20do%20I%20back%20up%20and%20restore%20data%20with%20Import%20%2F%20export%20in%20Ram-Gear&#x27;s%20Change%20Gear%20app%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<ol><li>Open <b>Import / export</b>. <b>Export</b> saves machines, gear lists and presets (optionally manuals) to a JSON file.</li><li>Admins: <b>Import from file</b> loads such a file back (choose whether to replace or add).</li></ol>
+</div>
+<div class="step"><div class="sec-head"><h3>Upload data saved before logins (admin)</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20How%20do%20I%20upload%20machines%20that%20were%20saved%20in%20my%20browser%20before%20logins%20existed%20in%20Ram-Gear&#x27;s%20Change%20Gear%20app%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<p>Before v1.8 each PC kept its own machines and gear lists in its browser. Those do not show up in the shared list by themselves.</p>
+<ol><li>On the <b>same PC and browser</b> you used before, sign in as admin.</li><li>Open <b>Import / export</b>. If the <b>Upload my local data to the shared database</b> card shows, first click Export to keep a backup.</li><li>Click <b>Upload my local data</b>. Machines with the same name in the shared database are replaced.</li></ol>
+</div>
+</section>
+<section class="card" id="trouble"><div class="sec-head"><h2>Troubleshooting</h2><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20I%20have%20a%20problem%20with%20Ram-Gear&#x27;s%20Change%20Gear%20app.%20How%20do%20I%20troubleshoot%20it%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<div class="step"><div class="sec-head"><h3>My machine is missing / the list says "None yet"</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20My%20machine%20is%20missing%20in%20Ram-Gear&#x27;s%20Change%20Gear%20app%20and%20My%20machines%20says%20None%20yet.%20What%20do%20I%20do%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<p>The list shows machines from the shared database only. A machine made before logins (v1.8) may still be saved only in the browser of the PC it was made on. Use <a href="#tasks">Upload data saved before logins</a> on that PC. If that card does not show, the browser data is gone; use an exported JSON file (Import from file) or enter the machine again.</p>
+</div>
+<div class="step"><div class="sec-head"><h3>"🔒 Sign in as admin to add machines"</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20Ram-Gear&#x27;s%20Change%20Gear%20app%20shows%20Sign%20in%20as%20admin%20to%20add%20machines%20instead%20of%20Add%20a%20machine.%20Why%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<p>You are signed in as a viewer (or another non-admin account). Click the line to see your username and role and to sign out / switch account. An admin can change your Change Gear role in QC Form admin.</p>
+</div>
+<div class="step"><div class="sec-head"><h3>Sign-in error</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20Ram-Gear&#x27;s%20Change%20Gear%20app%20says%20Wrong%20username%20or%20PIN%2C%20or%20the%20account%20is%20not%20set%20up.%20What%20should%20I%20check%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<ul><li><b>Wrong username or PIN, or the account is not set up</b>: check the username and PIN (the same as the QC Form); ask the admin if your account is set up.</li>
+<li><b>No access to Change Gear (role: none)</b>: your account exists but has no Change Gear role; ask the admin.</li>
+<li><b>Could not reach / load the shared database</b>: check the internet connection and try again.</li>
+<li><b>Your last change was NOT saved to the shared database</b>: reload the page to see what is saved, then try again.</li></ul>
+</div>
+<div class="step"><div class="sec-head"><h3>"Something went wrong" banner</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20Ram-Gear&#x27;s%20Change%20Gear%20app%20shows%20a%20Something%20went%20wrong%20banner.%20What%20should%20I%20do%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<p>Reload the page. If it comes back, note the whole message and the version shown at the end and tell your admin.</p>
+</div>
+</section>
+<section class="card" id="formulas"><div class="sec-head"><h2>Formula guide</h2><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20How%20do%20I%20write%20formulas%20for%20a%20new%20machine%20in%20Ram-Gear&#x27;s%20Change%20Gear%20app%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+
+<h3>The basics</h3><ul>
+<li>A machine has three kinds of names: <b>inputs</b> (what the operator types, like helix angle <code>B</code> or teeth <code>Z</code>), <b>constants</b> (fixed numbers for that machine, like machine constant <code>O</code>) and <b>formulas</b> (calculated from inputs and constants).</li>
+<li>Names start with a letter and use only letters, numbers and <code>_</code>. Capitals don't matter: <code>z</code> and <code>Z</code> are the same name.</li>
+<li>A formula can use any input, constant or other formula, in any order, but not itself, even through another formula (the app reports a <i>circular reference</i>).</li>
+<li>Text inputs (sales order, part description) can't be used in a formula.</li>
+<li>Machines made with <b>+ Add a machine</b> already use the names <code>KIDX</code> (index constant), <code>KDIFF</code> (differential constant), <code>MM</code> (25.4), <code>Z</code>, <code>K</code>, <code>B</code>, <code>D</code> and <code>Q</code>.</li></ul>
+<h3>Math you can use</h3><ul>
+<li>Operators <code>+ - * / ^</code> and brackets. <code>^</code> first, then <code>* /</code>, then <code>+ -</code>. Like the old BASIC, <code>-2 ^ 2</code> is <code>-4</code>; write <code>(-2) ^ 2</code> for 4. If unsure, add brackets.</li>
+<li><code>PI</code> is built in.</li>
+<li>Angles: <code>SIN COS TAN ATN</code> work in <b>radians</b>; <code>SIND COSD TAND</code> (and <code>ASIND ACOSD ATND</code>) in <b>degrees</b>. Or convert with <code>B * PI / 180</code>.</li>
+<li>Other functions (one value each): <code>SQR</code> (square root), <code>ABS</code>, <code>SGN</code>, <code>INT</code>, <code>FIX</code>, <code>CINT</code>, <code>ROUND</code> (to a whole number), <code>EXP</code>, <code>LOG</code> (natural log), <code>ASIN</code>, <code>ACOS</code>; and <code>MIN(a, b)</code>, <code>MAX(a, b)</code>.</li>
+<li><code>IF(test, value if yes, value if no)</code>. Tests: <code>= &lt;&gt; &lt; &gt; &lt;= &gt;=</code>.</li></ul>
+<h3>Common patterns</h3><ol>
+<li><b>Index ratio</b>: <code>24 * K / Z</code> (index constant 24 × hob starts ÷ teeth); <code>30 * K / Z</code> for a machine whose constant is 30. 24, K = 1, Z = 40 gives 0.6.</li>
+<li><b>Differential ratio</b>: <code>O * SIND(B) / D / K</code> for a metric module cutter (D = normal module), <code>(O / 25.4) * SIND(B) * D / K</code> for an inch DP cutter (D = normal DP), with machine constant <code>O</code> set as a constant. O = 11.9367, B = 30, D = 8, K = 1 gives 0.74604375 (metric).</li>
+<li><b>Inch or metric in one formula</b>: <code>IF(Q = 1, O * SIND(B) / D / K, (O / 25.4) * SIND(B) * D / K)</code> - Q = 1 is metric, Q = 0 is inch.</li>
+<li><b>Feed ratio</b>: <code>F / 0.25</code> = the feed you want ÷ the machine's base feed. <b>0.25 is only a placeholder</b>: use your machine's own feed constant from its manual.</li>
+<li><b>Build up step by step</b> (easier to check): <code>C = B * PI / 180</code>, then <code>R = O * SIN(C) / D / K</code>.</li>
+<li><b>Hob speed and time</b>: <code>RPM = SF / (DA * PI / 12)</code> (100 SF, 3 in hob: 127.32 RPM), then <code>TIME = (LC / COSD(HELIX)) / (RPM / NT * SN * FEED)</code> minutes per cut.</li></ol>
+<h3>Tips</h3><ul>
+<li>Give every input an <b>example</b> value, then test the machine with a job you already know the answer to.</li>
+<li>For a typing mistake the app shows the character position. Look for a missing bracket, a misspelled name, or a function without brackets (<code>SIN B</code> instead of <code>SIN(B)</code>). Other problems (unknown name, circular reference, text input) are named in the message.</li>
+<li>Once the results match a known job, use <b>Verify &amp; lock</b>.</li></ul>
+</section>
+<section class="card" id="practice"><div class="sec-head"><h2>Try it</h2><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20Can%20you%20give%20me%20practice%20exercises%20for%20Ram-Gear&#x27;s%20Change%20Gear%20app%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+
+<p class="small">These boxes run only in this page with the app's own calculation engine. No sign-in, nothing is saved or sent.</p>
+<div class="try" id="try-formula"><div class="sec-head"><h3>a. Write a formula</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20I&#x27;m%20doing%20the%20Write%20a%20formula%20practice%20box%20in%20Ram-Gear&#x27;s%20Change%20Gear%20help%20page.%20Can%20you%20help%20me%20write%20the%20formula%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<label>Task <select id="tf-task"></select></label><p id="tf-text" class="small"></p>
+<input id="tf-input" type="text" placeholder="e.g. 24 * K / Z" autocomplete="off"> <button id="tf-check" type="button">Check</button><div id="tf-result" class="try-result" role="status"></div></div>
+<div class="try" id="try-ratio"><div class="sec-head"><h3>b. Work out a ratio</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20I&#x27;m%20doing%20the%20Work%20out%20a%20ratio%20practice%20box%20in%20Ram-Gear&#x27;s%20Change%20Gear%20help%20page.%20How%20do%20I%20calculate%20index%20and%20differential%20ratios%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<label>Task <select id="tr-task"></select></label><p id="tr-text" class="small"></p>
+<input id="tr-input" type="text" inputmode="decimal" placeholder="your ratio" autocomplete="off"> <button id="tr-check" type="button">Check</button>
+<p class="small muted">Allowed difference: ±0.01 %.</p><div id="tr-result" class="try-result" role="status"></div></div>
+<div class="try" id="try-gears"><div class="sec-head"><h3>c. Pick the change gears</h3><a class="ask" href="https://grok.com/?q=Please%20read%20https%3A%2F%2Fram-gear.github.io%2Fchange-gear%2Fhelp.html%20first.%20I&#x27;m%20doing%20the%20Pick%20the%20change%20gears%20practice%20box%20in%20Ram-Gear&#x27;s%20Change%20Gear%20help%20page.%20How%20do%20I%20find%20A%2FB%20x%20C%2FD%20gears%20for%20a%20target%20ratio%3F" target="_blank" rel="noopener">Ask Grok about this</a></div>
+<label>Task <select id="tg-task"></select></label><p id="tg-text" class="small"></p>
+<div class="gears">A <input id="tg-A" inputmode="numeric"> / B <input id="tg-B" inputmode="numeric"> × C <input id="tg-C" inputmode="numeric"> / D <input id="tg-D" inputmode="numeric"> <button id="tg-check" type="button">Check</button></div>
+<p class="small muted">Rules: gears with 20-88 teeth, at most 4 of any one tooth count, ratio within ±0.01 % of the target.</p><div id="tg-result" class="try-result" role="status"></div></div>
+</section>
+<p class="small muted">This page is public and contains no account data. Ask Grok links open grok.com in a new tab with a question about the step; nothing from the app is sent.</p>
+</main>
+<script type="module" src="js/help-practice.js"></script>
+</body></html>
