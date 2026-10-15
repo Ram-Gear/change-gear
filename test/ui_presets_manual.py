@@ -23,7 +23,7 @@ with sync_playwright() as p:
     pg.on('dialog', lambda d: d.accept())
     pg.goto(URL); pg.evaluate('localStorage.clear()'); pg.evaluate("new Promise(r => { const q = indexedDB.deleteDatabase('ramgear-change-gear'); q.onsuccess = q.onerror = q.onblocked = () => r(); })")
     pg.goto(URL + '#/'); pg.reload()
-    check('v1.8' in pg.locator('#app-version').inner_text(), 'version v1.8')
+    check('v1.8.2' in pg.locator('#app-version').inner_text(), 'version v1.8.2')
     # --- presets on FO-10 (built-in override)
     fo10(pg, 101)
     hint = pg.locator('.prime-hint')

@@ -444,3 +444,7 @@ export/import with manuals, delete asks about the manual) and `test/ui_standalon
 * Non-admins see a greyed "🔒 Sign in as admin to add machines" menu line instead of nothing; #/admin-hint explains the user/role and offers Sign out / switch account. The sign-in card notes that adding machines needs admin.
 * Global error banner ignores benign "ResizeObserver loop" errors (3818864).
 * Sign-in screen restyled to match the QC Form login (Ram-Gear/ramgear-app index.html #login + app.css "login screen"): background photo with charcoal overlay, white card with #4396AC top border, logo, company name, address, app line, Username then Password or PIN, full-width #2E7386 Sign in button, footer + version. img/login-bg.jpg and img/ramgear-logo.jpg copied from the QC repo. Logic and element ids unchanged.
+
+## v1.8.2 (2026-10-15)
+* "? Help" link (index.html header, fixed top-right, visible on the sign-in screen too): plain link to https://grok.com/?q=<fixed question>, target=_blank rel=noopener. No user data in the URL.
+* Page background (outside cards/inputs/outputs, not the sign-in photo) is #EAF7EA, the shared Ram-Gear colour. Contrast on it: body text 14.3:1, muted 5.1:1, links 7.4-8.5:1 (all WCAG AA).
