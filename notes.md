@@ -453,3 +453,15 @@ export/import with manuals, delete asks about the manual) and `test/ui_standalon
 * App Hub tile icon (Ram-Gear/app-hub icons/change-gear.svg, copied read-only to app/img/ with change-gear-192.png) shown 32px left of the header title and used as favicon (SVG) + apple-touch-icon (192 PNG). Standalone embeds the SVG as a data URI.
 * app/help.html: public help page (what it does, screens, step-by-step tasks, troubleshooting, formula guide from changegear-formula-guide.md checked against formula.js), "Try it" practice boxes (js/help-practice.js: formula vs reference on sample inputs, ratio ±0.01 %, gears 20-88 max 4 each ±0.01 % with rankedSearch answer), an "Ask Grok about this" link per section/step. Linked from the menu ("📖 Help & how-to") and the sign-in card; the standalone links to the published help page. Help button question now ends "Please read https://ram-gear.github.io/change-gear/help.html first, then give me pointers." Test: test/ui_help.py.
 * Formula guide corrections: full function list (ATN, ASIND/ACOSD/ATND, SGN, FIX, CINT, EXP, LOG, ASIN, ACOS were missing); ROUND takes one value (whole number); -2 ^ 2 = -4 like BASIC; Q = 1 metric / Q = 0 inch spelled out; character position only for typing errors; names used by + Add a machine (KIDX, KDIFF, MM); feed 0.25 marked as placeholder; worked numbers added and verified.
+
+## v1.8.4 (2026-10-15) - "Show more / different options" on every gear-train list (dev only, not published)
+- Every gear-train result section (index and differential; FO-10, Fauter, FD-500 and all added machines) now has
+  **Show more / different options** and **Start over**. Barber-Colman breakdown is unchanged (not added).
+- Ranked search: each click shows the next 20 distinct trains (A<->C / B<->D swaps count as the same train),
+  continuing the same ranking order (options 21-40, 41-60, ...). Never repeats; when everything within the limits
+  has been shown the button disables and says so. Each section keeps its own history.
+  Code: `rankedNextBatch()` / `trainKey()` in js/search.js, `runTrain(..., {shown})` in js/calc.js.
+- Original program search: the button gives the next 20 matches from the same generator (BASIC order), Start over
+  restarts it. Find / Continue / Next 10 still work.
+- The first batch is identical to before; basic_compare still 0 mismatches.
+- Tests: test/reroll.test.mjs (in run_all.mjs), test/ui_reroll.py (both modes, all built-ins + an added machine).

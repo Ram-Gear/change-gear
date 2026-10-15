@@ -164,6 +164,21 @@ export function rankedSearch(target, gears, opts = {}) {
   }
   return best;
 }
+// v1.8.4 reroll: the next batch of distinct trains after the ones already shown (keys in `shown`), in the
+// same ranking order. The first batch (empty `shown`) is exactly rankedSearch(target, gears, opts).
+export function rankedNextBatch(target, gears, opts = {}, shown = new Set(), pageSize) {
+  const n = Number(opts.gears || 4);
+  const size = Number(pageSize || opts.maxResults || 20);
+  let want = shown.size + size;
+  for (;;) {
+    const all = rankedSearch(target, gears, { ...opts, maxResults: want });
+    const left = all.filter((r) => !shown.has(keyOf(r, n)));
+    const done = all.length < want; // the search found fewer trains than asked for: nothing beyond these exists
+    if (left.length >= size || done) return { list: left.slice(0, size), exhausted: done && left.length <= size };
+    want += size;
+  }
+}
+export function trainKey(r, n = 4) { return keyOf(r, n); }
 function keyOf(r, n) {
   return n === 2 ? `${r.A}/${r.B}` : `${Math.min(r.A, r.C)},${Math.max(r.A, r.C)}/${Math.min(r.B, r.D)},${Math.max(r.B, r.D)}`;
 }

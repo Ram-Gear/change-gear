@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 import * as dataStore from './store.js';
-export const APP_VERSION = 'RAM-GEAR web v1.8.3 (2026-10-15)';
+export const APP_VERSION = 'RAM-GEAR web v1.8.4 (2026-10-15)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 function showStorageBanner(problem) {
@@ -491,7 +491,9 @@ function renderTrain(m, res, i, trainState, onPresetsChanged) {
     };
     body.append(
       h('div', { class: 'row' }, h('button', { class: 'blue', onclick: () => { gen = null; st.matches = []; tbody.replaceChildren(); findNext(1); } }, 'Find change gears'),
-        h('button', { onclick: () => findNext(1) }, 'Continue (next match)'), h('button', { onclick: () => findNext(10) }, 'Next 10')),
+        h('button', { onclick: () => findNext(1) }, 'Continue (next match)'), h('button', { onclick: () => findNext(10) }, 'Next 10'),
+        h('button', { class: 'blue reroll-more', onclick: () => findNext(20) }, 'Show more / different options'),
+        h('button', { class: 'reroll-reset', onclick: () => { gen = null; st.matches = []; tbody.replaceChildren(); screen.style.display = 'none'; status.textContent = ''; findNext(20); } }, 'Start over')),
       status,
       h('table', {}, h('thead', {}, h('tr', {}, ['#', 'A', 'B', 'C', 'D', 'Train ratio A/B×C/D', 'Error', 'Search pass', ''].map((x) => h('th', { class: 'num' }, x)))), tbody),
       h('div', { class: 'small muted' }, 'A and C are the driving gears, B and D the driven gears (ratio = A/B × C/D), as in the original printout.'),
@@ -519,28 +521,46 @@ function renderTrain(m, res, i, trainState, onPresetsChanged) {
       const hint = P.primeHint(z, inv ? inv.gears : [], getPresets(m));
       if (hint) body.append(msg('warn prime-hint', hint));
     }
-    try {
-      const r = calc.runTrain(res, t, allInventories());
-      st.matches = r.list;
+    // v1.8.4 reroll: "Show more / different options" gives the next batch of distinct trains (never one already
+    // shown in this section), in the same ranking order; "Start over" goes back to the first batch.
+    const shown = new Set(); let shownCount = 0;
+    const listBox = h('div', {});
+    const nGears = t.gears || 4;
+    const showBatch = () => {
+      let r;
+      try { r = calc.runTrain(res, t, allInventories(), { shown }); } catch (e) { listBox.replaceChildren(msg('err', e.message)); return; }
+      const first = shownCount;
+      st.matches = r.list; tbody.replaceChildren();
       r.list.forEach((v, k) => {
+        shown.add(calc.trainKey(v, nGears));
         const tr = h('tr', { class: 'clickable', onclick: () => { tbody.querySelectorAll('tr').forEach((x) => x.classList.remove('sel')); tr.classList.add('sel'); st.selected = v; } },
-          h('td', { class: 'num' }, k + 1), h('td', { class: 'num' }, v.A), h('td', { class: 'num' }, v.B), h('td', { class: 'num' }, v.C ?? ''), h('td', { class: 'num' }, v.D ?? ''),
+          h('td', { class: 'num' }, first + k + 1), h('td', { class: 'num' }, v.A), h('td', { class: 'num' }, v.B), h('td', { class: 'num' }, v.C ?? ''), h('td', { class: 'num' }, v.D ?? ''),
           h('td', { class: 'num' }, v.ratio.toFixed(8)), h('td', { class: 'num' }, fmtPct(v.err)),
           (isIdx && z !== null && canEdit()) ? h('td', {}, h('button', { class: 'small save-row-preset', title: `Save as preset for z = ${z}`, onclick: (ev) => {
             ev.stopPropagation(); setPresets(m, P.upsertPreset(getPresets(m), P.presetFromMatch(z, v))); if (onPresetsChanged) onPresetsChanged();
           } }, 'Save as preset')) : null);
         tbody.append(tr);
-        if (k === 0) { tr.classList.add('sel'); if (!st.selected) st.selected = v; searchSel = v; }
+        if (k === 0) { tr.classList.add('sel'); if (!st.selected || first > 0) st.selected = v; searchSel = v; }
         tr.addEventListener('click', () => { searchSel = v; });
       });
-      body.append(r.list.length ? h('table', {}, h('thead', {}, h('tr', {}, [...['Rank', 'A', 'B', 'C', 'D', 'Train ratio', 'Error'], ...(isIdx && z !== null && canEdit() ? [''] : [])].map((x) => h('th', { class: 'num' }, x)))), tbody) : msg('warn', 'No combination within the tolerance.'),
-        h('div', { class: 'small muted' }, 'Drivers A, C / driven B, D. Swapping A with C (or B with D) gives the same ratio and is listed once. Gear quantities in the inventory are respected.'),
-        (isIdx && z !== null && r.list.length && canEdit()) ? h('div', { class: 'row', style: 'margin-top:6px' }, h('button', { class: 'blue', id: 'save-preset', onclick: () => {
-          if (!searchSel) return;
-          setPresets(m, P.upsertPreset(getPresets(m), P.presetFromMatch(z, searchSel)));
-          if (onPresetsChanged) onPresetsChanged();
-        } }, `Save selected match as preset for z = ${z}`)) : null);
-    } catch (e) { body.append(msg('err', e.message)); }
+      shownCount += r.list.length;
+      const none = !r.list.length;
+      listBox.replaceChildren(
+        none ? msg('warn', first ? 'No more different options - every train within the limits has been shown. Click "Start over" to see the best ones again.' : 'No combination within the tolerance.')
+          : h('table', {}, h('thead', {}, h('tr', {}, [...['Rank', 'A', 'B', 'C', 'D', 'Train ratio', 'Error'], ...(isIdx && z !== null && canEdit() ? [''] : [])].map((x) => h('th', { class: 'num' }, x)))), tbody),
+        h('div', { class: 'row reroll', style: 'margin-top:6px' },
+          h('button', { class: 'blue reroll-more', disabled: (none || r.exhausted) ? true : undefined, onclick: showBatch }, 'Show more / different options'),
+          h('button', { class: 'reroll-reset', disabled: first === 0 && !none ? true : undefined, onclick: () => { shown.clear(); shownCount = 0; st.selected = null; showBatch(); } }, 'Start over'),
+          h('span', { class: 'small muted reroll-status' }, none ? '' : `Options ${first + 1}-${first + r.list.length}${r.exhausted ? ' (last ones - no more different options)' : ''}. ${shownCount} different trains shown so far.`)));
+    };
+    showBatch();
+    body.append(listBox,
+      h('div', { class: 'small muted' }, 'Drivers A, C / driven B, D. Swapping A with C (or B with D) gives the same ratio and is listed once. Gear quantities in the inventory are respected.'),
+      (isIdx && z !== null && canEdit()) ? h('div', { class: 'row', style: 'margin-top:6px' }, h('button', { class: 'blue', id: 'save-preset', onclick: () => {
+        if (!searchSel) return;
+        setPresets(m, P.upsertPreset(getPresets(m), P.presetFromMatch(z, searchSel)));
+        if (onPresetsChanged) onPresetsChanged();
+      } }, `Save selected match as preset for z = ${z}`)) : null);
   }
   card.append(body);
   return card;

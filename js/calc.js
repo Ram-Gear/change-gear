@@ -7,11 +7,12 @@ export * as presets from './presets.js';
 export * as mbf from './mbf.js';
 export { makeBackend, formatSig } from './numeric.js';
 export { compileMachine, evaluateMachine, parseFormula, parsePrintLine, formatPrintLine, FUNCTIONS, RESERVED, FormulaError, sigilOf } from './formula.js';
+export { rankedNextBatch, trainKey } from './search.js';
 export { legacyRamgear, legacyFirstN, rankedSearch, bcBreakdown, bcSummaryLine, LEGACY } from './search.js';
 export { BUILTIN_MACHINES, BUILTIN_INVENTORIES } from './machines.js';
 
 import { compileMachine, evaluateMachine } from './formula.js';
-import { legacyRamgear, rankedSearch, bcBreakdown } from './search.js';
+import { rankedNextBatch, legacyRamgear, rankedSearch, bcBreakdown } from './search.js';
 import { cleanPreset } from './presets.js';
 import { BUILTIN_MACHINES, BUILTIN_INVENTORIES, REMOVED_BUILTIN_IDS } from './machines.js';
 export { REMOVED_BUILTIN_IDS };
@@ -64,7 +65,9 @@ export function runTrain(result, train, inventories = BUILTIN_INVENTORIES, opts 
   }
   if (train.strategy === 'ranked') {
     if (!inv) throw new Error(`Inventory "${train.inventory}" not found`);
-    return { type: 'ranked', R, list: rankedSearch(num.toJS(R), inv.gears, { gears: train.gears || 4, maxResults: train.maxResults || 20, tolerance: train.tolerance }) };
+    const ro = { gears: train.gears || 4, maxResults: train.maxResults || 20, tolerance: train.tolerance };
+    if (opts.shown) { const nb = rankedNextBatch(num.toJS(R), inv.gears, ro, opts.shown); return { type: 'ranked', R, list: nb.list, exhausted: nb.exhausted }; }
+    return { type: 'ranked', R, list: rankedSearch(num.toJS(R), inv.gears, ro) };
   }
   throw new Error(`Unknown strategy ${train.strategy}`);
 }
