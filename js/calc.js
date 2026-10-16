@@ -12,7 +12,8 @@ export { legacyRamgear, legacyFirstN, rankedSearch, bcBreakdown, bcSummaryLine, 
 export { BUILTIN_MACHINES, BUILTIN_INVENTORIES } from './machines.js';
 
 import { compileMachine, evaluateMachine } from './formula.js';
-import { rankedNextBatch, legacyRamgear, rankedSearch, bcBreakdown } from './search.js';
+import { rankedNextBatch, legacyRamgear, rankedSearch, bcBreakdown, exactIndexSearch, exactCheck } from './search.js';
+export { exactIndexSearch, exactCheck } from './search.js';
 import { cleanPreset } from './presets.js';
 import { BUILTIN_MACHINES, BUILTIN_INVENTORIES, REMOVED_BUILTIN_IDS } from './machines.js';
 export { REMOVED_BUILTIN_IDS };
@@ -59,17 +60,35 @@ export function runTrain(result, train, inventories = BUILTIN_INVENTORIES, opts 
   const name = String(train.ratio).toUpperCase();
   const R = result.env.get(name);
   const inv = inventories.find((i) => i.id === train.inventory);
+  // v1.8.5 (Gary's rule): INDEX trains must be EXACT - A*C/(B*D) equal to the index ratio with zero error,
+  // checked in integer/rational arithmetic. exact = {p, q, text} (BigInt) or {approx, tol, text, irrational}.
+  const exact = train.kind === 'index' ? exactRatioOf(result, name) : null;
   if (train.strategy === 'legacy-ramgear') {
     const useInv = train.useInventory && inv ? inventoryMap(inv) : null;
-    return { type: 'legacy', R, gen: legacyRamgear(R, num, { inventory: useInv, maxD: opts.maxD, yieldEvery: opts.yieldEvery }) };
+    const gen = legacyRamgear(R, num, { inventory: useInv, maxD: opts.maxD, yieldEvery: opts.yieldEvery });
+    if (!exact) return { type: 'legacy', R, gen };
+    const ok = exactCheck(exact);
+    return { type: 'legacy', R, exact, gen: (function* () { for (const v of gen) if (v.progress || ok(v.A * v.C, v.B * v.D)) yield v.progress ? v : { ...v, errorPct: 0 }; })() };
   }
   if (train.strategy === 'ranked') {
     if (!inv) throw new Error(`Inventory "${train.inventory}" not found`);
-    const ro = { gears: train.gears || 4, maxResults: train.maxResults || 20, tolerance: train.tolerance };
+    const ro = { gears: train.gears || 4, maxResults: train.maxResults || 20, tolerance: train.tolerance, hideSwaps: !!train.hideSwaps };
+    if (exact) {
+      const all = exactIndexSearch(exact, inv.gears, ro); const size = ro.maxResults;
+      const left = opts.shown ? all.filter((r) => !opts.shown.has(r.key)) : all;
+      return { type: 'ranked', R, exact, total: all.length, list: left.slice(0, size), exhausted: left.length <= size };
+    }
     if (opts.shown) { const nb = rankedNextBatch(num.toJS(R), inv.gears, ro, opts.shown); return { type: 'ranked', R, list: nb.list, exhausted: nb.exhausted }; }
     return { type: 'ranked', R, list: rankedSearch(num.toJS(R), inv.gears, ro) };
   }
   throw new Error(`Unknown strategy ${train.strategy}`);
+}
+
+export function exactRatioOf(result, name) {
+  const v = result.exactEnv && result.exactEnv.get(name);
+  if (v && !v.irr && v.p > 0n) return { p: v.p, q: v.q, text: v.q === 1n ? String(v.p) : `${v.p}/${v.q}` };
+  const x = v && v.irr ? v.v : result.num.toJS(result.env.get(name));
+  return { approx: x, tol: 1e-12, irrational: true, text: String(x) };
 }
 
 // ------------------------------------------------------------ import / export

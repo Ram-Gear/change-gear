@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 import * as dataStore from './store.js';
-export const APP_VERSION = 'RAM-GEAR web v1.8.4 (2026-10-15)';
+export const APP_VERSION = 'RAM-GEAR web v1.8.6 (2026-10-15)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 function showStorageBanner(problem) {
@@ -174,7 +174,7 @@ function setPresets(m, list) {
   saveStore();
 }
 const zOf = (res) => { try { const v = res.env.get('Z'); return v === undefined ? null : res.num.toJS(v); } catch (e) { return null; } };
-const placeholderGears = () => Array.from({ length: 69 }, (_, i) => ({ teeth: 20 + i, qty: 1 }));
+const placeholderGears = () => Array.from({ length: 69 }, (_, i) => ({ teeth: 20 + i, qty: 4 }));
 const newInvId = () => 'inv-' + Math.random().toString(36).slice(2, 8);
 function downloadText(name, text, type) {
   const a = h('a', { href: URL.createObjectURL(new Blob([text], { type })), download: name });
@@ -442,7 +442,9 @@ function renderTrain(m, res, i, trainState, onPresetsChanged) {
   if (t.strategy === 'legacy-ramgear') {
     const useInv = h('input', { type: 'checkbox', checked: !!t.useInventory, onchange: () => { setTrainOverride(m, i, { useInventory: useInv.checked }); rerender(); } });
     card.append(h('div', { class: 'small muted' }, 'Tries A, B, C, D from 20 to 88 teeth in the same order as the original program and stops at each train within 0.9999 - 1.0001 of the ratio. "Find change gears" gives the same first answer as the old program; "Continue" gives the next one, like (C) CONTINUE did.'),
-      h('div', { class: 'row small', style: 'margin:6px 0' }, h('label', {}, useInv, ' Only use gears from inventory: '), invSel));
+      h('div', { class: 'row small', style: 'margin:6px 0' }, h('label', {}, useInv, ' Only use gears from inventory: '), invSel),
+      t.kind === 'index' ? presetBar(m, res, t, zOf(res), onPresetsChanged) : null,
+      t.kind === 'index' ? h('div', { class: 'small exact-info' }, h('b', {}, 'Index: exact matches only (zero error). '), `Index ratio = ${calc.exactRatioOf(res, String(t.ratio).toUpperCase()).text}. Trains the original program accepts within 0.01 % but not exact are skipped.`) : null);
     let gen = null;
     const tbody = h('tbody');
     const status = h('div', { class: 'small muted' });
@@ -502,7 +504,12 @@ function renderTrain(m, res, i, trainState, onPresetsChanged) {
     const gearsSel = h('select', { onchange: () => { setTrainOverride(m, i, { gears: Number(gearsSel.value) }); rerender(); } }, h('option', { value: '4' }, '4 gears (A/B × C/D)'), h('option', { value: '2' }, '2 gears (A/B)'));
     gearsSel.value = String(t.gears || 4);
     const tol = h('input', { type: 'text', style: 'width:110px', value: t.tolerance ? String(t.tolerance * 100) : '', placeholder: 'any', onchange: () => { const v = parseFloat(tol.value); setTrainOverride(m, i, { tolerance: v > 0 ? v / 100 : undefined }); rerender(); } });
-    card.append(h('div', { class: 'row small', style: 'margin:6px 0' }, 'Inventory: ', invSel, ' Train: ', gearsSel, ' Max error %: ', tol));
+    const hideSw = h('input', { type: 'checkbox', class: 'hide-swaps', checked: !!t.hideSwaps, onchange: () => { setTrainOverride(m, i, { hideSwaps: hideSw.checked }); rerender(); } });
+    const isIdx0 = t.kind === 'index';
+    card.append(h('div', { class: 'row small', style: 'margin:6px 0' }, 'Gears: ', invSel, ' Train: ', gearsSel, isIdx0 ? null : ' Max error %: ', isIdx0 ? null : tol,
+      h('label', { title: 'A/B × C/D and C/B × A/D (or A/D × C/B) give the same ratio. The original program lists each placement; tick to list them once.' }, hideSw, ' Hide swapped duplicates (A↔C, B↔D)')));
+    const invNow = allInventories().find((v) => v.id === t.inventory);
+    if (invNow && invNow.id !== 'legacy-20-88') card.append(h('div', { class: 'small muted inv-only-note' }, `Only gears in "${invNow.name}" are used (${(invNow.gears || []).filter((g) => (g.qty ?? 1) > 0).length} tooth counts). To see every option the original program finds, pick "Original program: every tooth count 20-88" above.`));
     const tbody = h('tbody');
     const isIdx = t.kind === 'index';
     let searchSel = null;
@@ -511,9 +518,9 @@ function renderTrain(m, res, i, trainState, onPresetsChanged) {
       const presets = P.presetsFor(getPresets(m), z);
       const Rt = res.num.toJS(R);
       if (presets.length) {
-        body.append(h('table', { class: 'preset-results' }, h('thead', {}, h('tr', {}, ['', 'A', 'B', 'C', 'D', 'Train ratio', 'Error', 'Note'].map((x) => h('th', { class: 'num' }, x)))),
+        body.append(h('table', { class: 'preset-results' }, h('thead', {}, h('tr', {}, ['', 'A', 'B', 'C', 'D', 'Train ratio', 'Error', 'Name / note'].map((x) => h('th', { class: 'num' }, x)))),
           h('tbody', {}, presets.map((p) => h('tr', { class: 'preset-row' }, h('td', {}, h('span', { class: 'badge preset' }, 'Preset')), h('td', { class: 'num' }, p.A), h('td', { class: 'num' }, p.B), h('td', { class: 'num' }, p.C ?? ''), h('td', { class: 'num' }, p.D ?? ''),
-            h('td', { class: 'num' }, P.presetRatio(p).toFixed(8)), h('td', { class: 'num' }, fmtPct(P.presetError(p, Rt))), h('td', { class: 'small' }, p.note || ''))))),
+            h('td', { class: 'num' }, P.presetRatio(p).toFixed(8)), h('td', { class: 'num' }, presetExact(res, t, p) ? '0 (exact)' : h('span', {}, fmtPct(P.presetError(p, Rt)), ' ', h('span', { class: 'badge warn preset-flag' }, 'Not exact'))), h('td', { class: 'small' }, [p.label, p.note].filter(Boolean).join(' - ')))))),
           h('div', { class: 'small muted', style: 'margin-bottom:8px' }, `Saved preset(s) for z = ${z}. Searched matches from the gear list are below.`));
         st.selected = { ...presets[0], ratio: P.presetRatio(presets[0]), err: P.presetError(presets[0], Rt) };
       }
@@ -521,32 +528,38 @@ function renderTrain(m, res, i, trainState, onPresetsChanged) {
       const hint = P.primeHint(z, inv ? inv.gears : [], getPresets(m));
       if (hint) body.append(msg('warn prime-hint', hint));
     }
+    const bar = isIdx ? presetBar(m, res, t, z, onPresetsChanged) : null; if (bar) body.append(bar);
     // v1.8.4 reroll: "Show more / different options" gives the next batch of distinct trains (never one already
     // shown in this section), in the same ranking order; "Start over" goes back to the first batch.
     const shown = new Set(); let shownCount = 0;
-    const listBox = h('div', {});
+    const listBox = h('div', {}); const exactInfo = h('div', {}); body.append(exactInfo);
     const nGears = t.gears || 4;
     const showBatch = () => {
       let r;
       try { r = calc.runTrain(res, t, allInventories(), { shown }); } catch (e) { listBox.replaceChildren(msg('err', e.message)); return; }
       const first = shownCount;
       st.matches = r.list; tbody.replaceChildren();
+      if (r.exact) exactInfo.replaceChildren(r.exact.irrational
+        ? msg('warn exact-info', `Index ratio ${r.exact.text} is not a whole-number fraction (the formula uses SIN, SQR, PI or similar), so "exact" means equal to 12 significant digits.`)
+        : h('div', { class: 'small exact-info' }, h('b', {}, 'Exact matches only (zero error). '), `Index ratio = ${r.exact.text}, checked with whole-number arithmetic. ${r.total} exact train(s) with these gears.`));
       r.list.forEach((v, k) => {
         shown.add(calc.trainKey(v, nGears));
         const tr = h('tr', { class: 'clickable', onclick: () => { tbody.querySelectorAll('tr').forEach((x) => x.classList.remove('sel')); tr.classList.add('sel'); st.selected = v; } },
           h('td', { class: 'num' }, first + k + 1), h('td', { class: 'num' }, v.A), h('td', { class: 'num' }, v.B), h('td', { class: 'num' }, v.C ?? ''), h('td', { class: 'num' }, v.D ?? ''),
           h('td', { class: 'num' }, v.ratio.toFixed(8)), h('td', { class: 'num' }, fmtPct(v.err)),
           (isIdx && z !== null && canEdit()) ? h('td', {}, h('button', { class: 'small save-row-preset', title: `Save as preset for z = ${z}`, onclick: (ev) => {
-            ev.stopPropagation(); setPresets(m, P.upsertPreset(getPresets(m), P.presetFromMatch(z, v))); if (onPresetsChanged) onPresetsChanged();
+            ev.stopPropagation(); const name = prompt(`Name for this preset (z = ${z}, ${P.presetText(v)}):`, ''); if (name === null) return;
+            setPresets(m, P.upsertPreset(getPresets(m), P.presetFromMatch(z, v, '', name))); if (onPresetsChanged) onPresetsChanged();
           } }, 'Save as preset')) : null);
         tbody.append(tr);
         if (k === 0) { tr.classList.add('sel'); if (!st.selected || first > 0) st.selected = v; searchSel = v; }
-        tr.addEventListener('click', () => { searchSel = v; });
+        tr.addEventListener('click', () => { searchSel = v; if (bar) bar.fillFrom(v); });
       });
       shownCount += r.list.length;
       const none = !r.list.length;
       listBox.replaceChildren(
-        none ? msg('warn', first ? 'No more different options - every train within the limits has been shown. Click "Start over" to see the best ones again.' : 'No combination within the tolerance.')
+        none && r.exact && !first ? msg('warn no-exact', noExactText(r.exact, invNow, z))
+          : none ? msg('warn', first ? 'No more different options - every train within the limits has been shown. Click "Start over" to see the best ones again.' : 'No combination within the tolerance.')
           : h('table', {}, h('thead', {}, h('tr', {}, [...['Rank', 'A', 'B', 'C', 'D', 'Train ratio', 'Error'], ...(isIdx && z !== null && canEdit() ? [''] : [])].map((x) => h('th', { class: 'num' }, x)))), tbody),
         h('div', { class: 'row reroll', style: 'margin-top:6px' },
           h('button', { class: 'blue reroll-more', disabled: (none || r.exhausted) ? true : undefined, onclick: showBatch }, 'Show more / different options'),
@@ -555,15 +568,90 @@ function renderTrain(m, res, i, trainState, onPresetsChanged) {
     };
     showBatch();
     body.append(listBox,
-      h('div', { class: 'small muted' }, 'Drivers A, C / driven B, D. Swapping A with C (or B with D) gives the same ratio and is listed once. Gear quantities in the inventory are respected.'),
+      h('div', { class: 'small muted' }, t.hideSwaps ? 'Drivers A, C / driven B, D. Swapped placements (A↔C, B↔D) are listed once. Gear quantities in the gear list are respected.' : 'Drivers A, C / driven B, D. Like the original program, every placement is listed (A↔C or B↔D swaps give the same ratio). Gear quantities in the gear list are respected.'),
       (isIdx && z !== null && canEdit()) ? h('div', { class: 'row', style: 'margin-top:6px' }, h('button', { class: 'blue', id: 'save-preset', onclick: () => {
         if (!searchSel) return;
-        setPresets(m, P.upsertPreset(getPresets(m), P.presetFromMatch(z, searchSel)));
+        const name = prompt(`Name for this preset (z = ${z}, ${P.presetText(searchSel)}):`, ''); if (name === null) return;
+        setPresets(m, P.upsertPreset(getPresets(m), P.presetFromMatch(z, searchSel, '', name)));
         if (onPresetsChanged) onPresetsChanged();
       } }, `Save selected match as preset for z = ${z}`)) : null);
   }
   card.append(body);
   return card;
+}
+
+// v1.8.6 named index presets: "Load preset" fills the gear fields and shows the train; admins save / rename / delete.
+// Stored in cg_presets.result.name (no schema change). A preset that is not EXACT for this index ratio is flagged.
+function presetExact(res, t, p) {
+  const ex = calc.exactRatioOf(res, String(t.ratio).toUpperCase());
+  return calc.exactCheck(ex)(p.C ? p.A * p.C : p.A, p.C ? p.B * p.D : p.B);
+}
+function presetBar(m, res, t, z, onPresetsChanged) {
+  const ratioName = String(t.ratio).toUpperCase();
+  const ex = calc.exactRatioOf(res, ratioName); const isExact = calc.exactCheck(ex);
+  const Rt = res.num.toJS(res.env.get(ratioName));
+  const list = () => getPresets(m);
+  const plabel = (p) => `${p.label || '(no name)'} - ${P.presetText(p)}${Number(p.z) !== Number(z) ? ` (saved for z = ${p.z})` : ''}`;
+  const wrap = h('div', { class: 'card preset-bar', style: 'margin:6px 0 10px;padding:8px 10px' });
+  const fld = (k) => h('input', { type: 'text', class: 'pg-field', id: `pg-${k}-${t.kind}`, 'data-gear': k, style: 'width:56px', inputmode: 'numeric' });
+  const F = { A: fld('A'), B: fld('B'), C: fld('C'), D: fld('D') };
+  const train = h('div', { class: 'small preset-train' });
+  const sel = h('select', { class: 'preset-load' });
+  let current = -1;
+  const gears = () => { const g = {}; for (const k of 'ABCD') { const v = F[k].value.trim(); g[k] = v === '' ? undefined : Number(v); } return g; };
+  const show = () => {
+    const g = gears();
+    const c = P.cleanPreset({ z: z ?? 1, ...g });
+    if (!F.A.value.trim() && !F.B.value.trim()) { train.replaceChildren(); return null; }
+    if (c.errors.length) { train.replaceChildren(msg('err', c.errors.filter((e) => !/^z /.test(e)).join('; '))); return null; }
+    const p = c.preset; const num = p.C ? p.A * p.C : p.A, den = p.C ? p.B * p.D : p.B;
+    const r = num / den; const exact = isExact(num, den);
+    train.replaceChildren(h('span', {}, 'Train ', h('b', { class: 'preset-train-text' }, P.presetText(p)), ` = ${r.toFixed(8)}, error ${exact ? '0 (exact)' : fmtPct(r / Rt - 1)} `),
+      exact ? h('span', { class: 'badge preset' }, 'Exact') : h('span', { class: 'badge warn preset-flag', title: 'Index trains must have zero error' }, 'Not exact'));
+    return p;
+  };
+  for (const k of 'ABCD') F[k].addEventListener('input', () => { current = -1; sel.value = ''; show(); });
+  const fill = (p) => { F.A.value = p.A; F.B.value = p.B; F.C.value = p.C ?? ''; F.D.value = p.D ?? ''; show(); };
+  const redraw = () => {
+    const l = list();
+    const order = l.map((p, k) => ({ p, k })).sort((a, b) => (Number(b.p.z) === Number(z)) - (Number(a.p.z) === Number(z)) || a.p.z - b.p.z);
+    sel.replaceChildren(h('option', { value: '' }, l.length ? '- choose a saved preset -' : '- no presets saved yet -'),
+      ...order.map(({ p, k }) => { const n = p.C ? p.A * p.C : p.A, d = p.C ? p.B * p.D : p.B; return h('option', { value: String(k) }, plabel(p) + (isExact(n, d) ? '' : '  ⚠ not exact')); }));
+    sel.value = current >= 0 ? String(current) : '';
+    btns.replaceChildren(...(canEdit() ? [
+      h('button', { class: 'blue small preset-save', onclick: () => {
+        const p = show(); if (!p || z === null) return;
+        const name = prompt(`Name for this preset (z = ${z}, ${P.presetText(p)}):`, (current >= 0 && list()[current].label) || '');
+        if (name === null) return;
+        const np = { ...p, z: Number(z), note: (current >= 0 && list()[current].note) || '' }; if (name.trim()) np.label = name.trim(); else delete np.label;
+        const nl = P.upsertPreset(list(), np); setPresets(m, nl); current = nl.findIndex((x) => Number(x.z) === np.z && P.presetText(x) === P.presetText(np)); if (onPresetsChanged) onPresetsChanged(); redraw();
+      } }, 'Save as preset'),
+      h('button', { class: 'small preset-rename', disabled: current < 0 ? true : undefined, onclick: () => {
+        const l = list(); const p = l[current]; if (!p) return;
+        const name = prompt('New name for this preset:', p.label || ''); if (name === null) return;
+        const nl = l.map((x, k) => (k === current ? (name.trim() ? { ...x, label: name.trim() } : (({ label, ...y }) => y)(x)) : x)); setPresets(m, nl); if (onPresetsChanged) onPresetsChanged(); redraw();
+      } }, 'Rename'),
+      h('button', { class: 'small preset-delete', disabled: current < 0 ? true : undefined, onclick: () => {
+        const l = list(); const p = l[current]; if (!p || !confirm(`Delete preset "${p.label || P.presetText(p)}" (z = ${p.z}) for everyone?`)) return;
+        setPresets(m, l.filter((_, k) => k !== current)); current = -1; if (onPresetsChanged) onPresetsChanged(); redraw();
+      } }, 'Delete')] : [h('span', { class: 'small muted' }, 'Only an admin can save, rename or delete presets.')]));
+  };
+  sel.addEventListener('change', () => { current = sel.value === '' ? -1 : Number(sel.value); if (current >= 0) fill(list()[current]); redraw(); });
+  const btns = h('span', { class: 'row', style: 'display:inline-flex;gap:6px' });
+  wrap.append(h('div', { class: 'row small', style: 'gap:8px;align-items:center;flex-wrap:wrap' }, h('b', {}, 'Load preset: '), sel),
+    h('div', { class: 'row small', style: 'gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap' }, 'A ', F.A, ' / B ', F.B, ' × C ', F.C, ' / D ', F.D, btns), train);
+  redraw();
+  wrap.fillFrom = (v) => { current = -1; fill(v); redraw(); };
+  return wrap;
+}
+
+function noExactText(ex, inv, z) {
+  const zs = z !== null && z !== undefined ? ` for z = ${z}` : '';
+  if (ex.irrational) return `No exact index train${zs} with these gears.`;
+  const teeth = ((inv && inv.gears) || []).filter((g) => (g.qty ?? 1) > 0).map((g) => Number(g.teeth)); const top = teeth.length ? Math.max(...teeth) : 88;
+  let q = ex.q, big = 1n; for (let f = 2n; f * f <= q; f++) while (q % f === 0n) { if (f > big) big = f; q /= f; } if (q > big) big = q;
+  const need = big > BigInt(top) ? ` A ${big}-tooth gear (or a saved preset) is needed.` : ' Add gears to the gear list, pick "Original program: every tooth count 20-88", or save a preset.';
+  return `No exact index train${zs} (index ratio ${ex.text}) with these gears.${need}`;
 }
 
 function renderBreakdown(m, res, t, st) {
@@ -805,7 +893,7 @@ function renderEditor({ id, copyOf, readOnly }) {
       const t = S.trainOf(draft, kind);
       let inv = store.inventories.find((x) => x.id === draft.ownInventories[kind]);
       if (t && t.inventory === S.OWN_INV) {
-        if (!inv) { inv = { id: newInvId(), name: '', gears: placeholderGears(), note: 'Placeholder: one of each 20-88. Change it to the gears you really have.' }; store.inventories.push(inv); draft.ownInventories[kind] = inv.id; }
+        if (!inv) { inv = { id: newInvId(), name: '', gears: placeholderGears(), note: 'Placeholder: every tooth count 20-88, up to 4 of each (like the original program). Change it to the gears you really have.' }; store.inventories.push(inv); draft.ownInventories[kind] = inv.id; }
         t.inventory = inv.id;
       }
       if (inv) inv.name = S.ownInventoryName(draft.name, kind);
@@ -1104,8 +1192,8 @@ function presetEditor(m, onChange) {
   const draw = () => {
     if (!canEdit()) {
       card.replaceChildren(h('h3', {}, 'Index gear presets'),
-        rows.length ? h('table', { id: 'preset-table' }, h('thead', {}, h('tr', {}, ['z', 'A', 'B', 'C', 'D', 'Note'].map((x) => h('th', {}, x)))),
-          h('tbody', {}, rows.map((r) => h('tr', {}, ['z', 'A', 'B', 'C', 'D'].map((k) => h('td', { class: 'num' }, r[k] ?? '')), h('td', { class: 'small' }, r.note || ''))))) : h('p', { class: 'small muted' }, 'No presets saved for this machine.'),
+        rows.length ? h('table', { id: 'preset-table' }, h('thead', {}, h('tr', {}, ['z', 'A', 'B', 'C', 'D', 'Name', 'Note'].map((x) => h('th', {}, x)))),
+          h('tbody', {}, rows.map((r) => h('tr', {}, ['z', 'A', 'B', 'C', 'D'].map((k) => h('td', { class: 'num' }, r[k] ?? '')), h('td', { class: 'small preset-name' }, r.label || ''), h('td', { class: 'small' }, r.note || ''))))) : h('p', { class: 'small muted' }, 'No presets saved for this machine.'),
         h('div', { class: 'row', style: 'margin:6px 0' }, h('button', { onclick: () => downloadText(`${m.name.replace(/[^\w -]+/g, '')} index presets.csv`, P.presetsToCsv(getPresets(m)), 'text/csv') }, 'Export CSV'),
           h('span', { class: 'small muted' }, 'Only an admin can add or change presets.')));
       return;

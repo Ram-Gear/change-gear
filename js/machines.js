@@ -60,7 +60,7 @@ export const BUILTIN_MACHINES = [
       inputs: [{ name: 'Z', label: 'Number of teeth in gear (z)', unit: 'teeth', example: '40', basic: '(new in v1.4 - used by the index calculation)' }],
       formulas: [{ name: 'RIDX', expr: '24 * K / Z', label: 'Index ratio = 24 × hob starts ÷ z' }],
       outputs: [{ name: 'RIDX', label: 'Index ratio = 24 × hob starts ÷ z', format: 'basic' }],
-      trains: [{ kind: 'index', label: 'Index change gears (A/B x C/D) - Index ratio = 24 × hob starts ÷ z', ratio: 'RIDX', strategy: 'ranked', inventory: 'fo10-index-20-88', gears: 4, maxResults: 20 }],
+      trains: [{ kind: 'index', label: 'Index change gears (A/B x C/D) - Index ratio = 24 × hob starts ÷ z', ratio: 'RIDX', strategy: 'ranked', inventory: 'legacy-20-88', gears: 4, maxResults: 20 }],
     }),
   {
     id: 'hob-rpm-time', menu: '9', name: 'Hob RPM & cutting time', builtin: true, numeric: 'gwbasic',

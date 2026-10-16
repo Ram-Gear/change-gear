@@ -10,12 +10,15 @@ LIVE = '--live' in sys.argv
 fails, errors = [], []
 def check(c, m): print(('PASS ' if c else 'FAIL ') + m); (None if c else fails.append(m))
 SHARED = {'db': None}  # browser contexts do not share localStorage: hand the fake shared DB to each new 'PC'
+def _acc(d):  # v1.8.6: 'Save as preset' asks for a name
+    try: d.accept()
+    except Exception: pass
 def page(b, user, fresh=True):
     ctx = b.new_context(viewport={'width': 1300, 'height': 1000})
     if SHARED['db']: ctx.add_init_script("if (!sessionStorage.getItem('cgSeeded')) { localStorage.setItem('cgmock.db', " + json.dumps(json.dumps(SHARED['db'])) + "); sessionStorage.setItem('cgSeeded', '1'); }")
     if not LIVE: cgmock.install(ctx, user)
     pg = ctx.new_page(); pg.set_default_timeout(30000)
-    pg.on('pageerror', lambda e: errors.append(str(e)))
+    pg.on('pageerror', lambda e: errors.append(str(e))); pg.on('dialog', _acc)
     return pg
 with sync_playwright() as p:
     b = p.chromium.launch()
@@ -50,14 +53,14 @@ with sync_playwright() as p:
         kinds = sorted(g['kind'] for g in db['cg_gear_sets'] if g['machine_id'] == m['id'])
         check(kinds == ['differential', 'indexing'], f'own gear lists stored as cg_gear_sets {kinds}')
         check(pg.locator('button:has-text("Edit index gears")').count() == 1 and pg.locator('#manual-attach').count() == 1, 'admin: edit gears + attach manual visible')
-        pg.fill('#in-Z', '101'); pg.fill('#in-K', '1')
+        pg.fill('#in-Z', '47'); pg.fill('#in-K', '1')
         for k in ['B', 'D']:
             if pg.locator('#in-' + k).count(): pg.fill('#in-' + k, '30' if k == 'B' else '8')
         pg.click('button:has-text("Calculate")'); pg.wait_for_selector('.save-row-preset')
         pg.locator('.save-row-preset').first.click()
-        pg.wait_for_function("JSON.parse(localStorage.getItem('cgmock.db')).cg_presets.some(p => p.name === 'z=101')", timeout=15000)
-        pr = [x for x in pg.evaluate("JSON.parse(localStorage.getItem('cgmock.db'))")['cg_presets'] if x['name'] == 'z=101'][0]
-        check(pr['inputs'] == {'z': 101} and set(pr['result']) >= {'A', 'B', 'C', 'D', 'note'}, f'preset row {pr["inputs"]} {pr["result"]}')
+        pg.wait_for_function("JSON.parse(localStorage.getItem('cgmock.db')).cg_presets.some(p => p.name === 'z=47')", timeout=15000)
+        pr = [x for x in pg.evaluate("JSON.parse(localStorage.getItem('cgmock.db'))")['cg_presets'] if x['name'] == 'z=47'][0]
+        check(pr['inputs'] == {'z': 47} and set(pr['result']) >= {'A', 'B', 'C', 'D', 'note'}, f'preset row {pr["inputs"]} {pr["result"]}')
         SHARED['db'] = pg.evaluate("JSON.parse(localStorage.getItem('cgmock.db'))")
         pg.click('#sign-out'); pg.wait_for_selector('#login-form')
         check(pg.locator('#user-box').count() == 0, 'sign out returns to login')
@@ -73,7 +76,7 @@ with sync_playwright() as p:
         for sel, what in [('button:has-text("Edit index gears")', 'edit gears'), ('button:has-text("Duplicate")', 'duplicate'), ('#manual-attach', 'attach manual'), ('#preset-add', 'add preset'), ('#preset-save', 'save presets')]:
             check(pv.locator(sel).count() == 0, f'viewer: no {what}')
         check(pv.locator('#preset-table tbody tr').count() == 1, 'viewer sees the shared preset')
-        pv.fill('#in-Z', '101'); pv.fill('#in-K', '1')
+        pv.fill('#in-Z', '47'); pv.fill('#in-K', '1')
         for k in ['B', 'D']:
             if pv.locator('#in-' + k).count(): pv.fill('#in-' + k, '30' if k == 'B' else '8')
         pv.click('button:has-text("Calculate")'); pv.wait_for_selector('.results-table')
@@ -97,7 +100,7 @@ with sync_playwright() as p:
         pa.evaluate("""localStorage.setItem('ramgear.changegear.v1', JSON.stringify({machines:[], inventories:[{id:'inv-old', name:'Old box', gears:[{teeth:50,qty:2,note:'n'}]}],
             builtinOverrides:{'fauter-diff':{trains:{0:{inventory:'inv-old', strategy:'ranked'}}, indexPresets:[]}}, lastInputs:{}}))""")
         pa.goto(URL + '#/io'); pa.reload(); pa.wait_for_selector('#upload-local-go')
-        pa.on('dialog', lambda d: d.accept()); pa.click('#upload-local-go'); pa.wait_for_selector('#upload-local-msg .msg')
+        pa.click('#upload-local-go'); pa.wait_for_selector('#upload-local-msg .msg')
         db = pa.evaluate("JSON.parse(localStorage.getItem('cgmock.db'))")
         fr = [x for x in db['cg_machines'] if x['formulas'].get('builtin') == 'fauter-diff']
         check(len(fr) == 1 and any(g['machine_id'] == fr[0]['id'] and g['teeth'] == [50, 50] for g in db['cg_gear_sets']), 'upload: built-in row created by name, gear list stored')

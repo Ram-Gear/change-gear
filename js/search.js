@@ -109,6 +109,7 @@ export function rankedSearch(target, gears, opts = {}) {
   const nGears = Number(opts.gears || 4);
   const maxResults = opts.maxResults || 20;
   const tol = opts.tolerance ? Number(opts.tolerance) : Infinity; // relative, e.g. 0.0001
+  const hideSwaps = !!opts.hideSwaps;
   if (!(target > 0)) throw new Error('Needed ratio must be greater than 0');
   const inv = new Map();
   for (const g of gears || []) {
@@ -117,7 +118,7 @@ export function rankedSearch(target, gears, opts = {}) {
     if (t > 0 && qn > 0) inv.set(t, (inv.get(t) || 0) + qn);
   }
   const teeth = [...inv.keys()].sort((a, b) => a - b);
-  if (teeth.length === 0) throw new Error('Inventory is empty');
+  if (teeth.length === 0) throw new Error('This gear list is empty - add gears to it, or pick "Original program: every tooth count 20-88".');
   const pairs = [];
   for (const a of teeth) for (const b of teeth) {
     if (a === b && inv.get(a) < 2) continue;
@@ -133,14 +134,17 @@ export function rankedSearch(target, gears, opts = {}) {
     const ae = Math.abs(err);
     if (ae > tol || (best.length >= maxResults && ae >= worst)) return;
     if (nGears === 4 && !inventoryHas(inv, [A, B, C, D])) return;
-    const key = nGears === 2 ? `${A}/${B}` : `${Math.min(A, C)},${Math.max(A, C)}/${Math.min(B, D)},${Math.max(B, D)}`;
+    // v1.8.5: like the original program, every placement is its own option (24/47 x 20/20 and 20/47 x 24/20 both
+    // show). opts.hideSwaps = true gives the old behaviour (A<->C / B<->D swaps counted once).
+    const key = nGears === 2 ? `${A}/${B}` : hideSwaps ? `${Math.min(A, C)},${Math.max(A, C)}/${Math.min(B, D)},${Math.max(B, D)}` : `${A}/${B}x${C}/${D}`;
     if (seen.has(key)) return;
     seen.add(key);
     const rec = nGears === 2 ? { A, B, ratio, err } : { A, B, C, D, ratio, err };
+    Object.defineProperty(rec, 'key', { value: key, enumerable: false });
     let i = best.length;
     while (i > 0 && Math.abs(best[i - 1].err) > ae) i--;
     best.splice(i, 0, rec);
-    if (best.length > maxResults) { const drop = best.pop(); seen.delete(keyOf(drop, nGears)); }
+    if (best.length > maxResults) { const drop = best.pop(); seen.delete(drop.key); }
     if (best.length >= maxResults) worst = Math.abs(best[best.length - 1].err);
   };
   const lowerBound = (x) => { let lo = 0, hi = pairs.length; while (lo < hi) { const m = (lo + hi) >> 1; if (pairs[m].r < x) lo = m + 1; else hi = m; } return lo; };
@@ -180,8 +184,47 @@ export function rankedNextBatch(target, gears, opts = {}, shown = new Set(), pag
 }
 export function trainKey(r, n = 4) { return keyOf(r, n); }
 function keyOf(r, n) {
+  if (r.key) return r.key;
   return n === 2 ? `${r.A}/${r.B}` : `${Math.min(r.A, r.C)},${Math.max(r.A, r.C)}/${Math.min(r.B, r.D)},${Math.max(r.B, r.D)}`;
 }
+
+// ---------------------------------------------------------------- exact index (v1.8.5)
+// Every A/B x C/D (or A/B) from the gears with A*C/(B*D) EXACTLY equal to p/q (BigInt, reduced), in the
+// original program's loop order (D, then C, then B, then A ascending). Integer arithmetic only - no floats.
+// approx: {v, tol} instead of p/q for an index ratio that is not a rational number (uses SIN, SQR, PI...).
+export function exactIndexSearch(ratio, gears, opts = {}) {
+  const nGears = Number(opts.gears || 4);
+  const inv = new Map();
+  for (const g of gears || []) {
+    const t = Math.round(Number(g.teeth)); const qn = g.qty === undefined ? 1 : Math.max(0, Math.round(Number(g.qty)));
+    if (t > 0 && qn > 0) inv.set(t, (inv.get(t) || 0) + qn);
+  }
+  const teeth = [...inv.keys()].sort((a, b) => a - b);
+  if (!teeth.length) throw new Error('This gear list is empty - add gears to it, or pick "Original program: every tooth count 20-88".');
+  const hit = ratio.approx ? (num, den) => Math.abs(num / den / ratio.approx - 1) <= (ratio.tol || 1e-12)
+    : (num, den) => BigInt(num) * ratio.q === BigInt(den) * ratio.p;
+  const out = []; const seen = new Set();
+  const push = (A, B, C, D) => {
+    const key = nGears === 2 ? `${A}/${B}` : opts.hideSwaps ? `${Math.min(A, C)},${Math.max(A, C)}/${Math.min(B, D)},${Math.max(B, D)}` : `${A}/${B}x${C}/${D}`;
+    if (seen.has(key)) return; seen.add(key);
+    const rec = nGears === 2 ? { A, B, ratio: A / B, err: 0 } : { A, B, C, D, ratio: (A * C) / (B * D), err: 0 };
+    Object.defineProperty(rec, 'key', { value: key, enumerable: false }); out.push(rec);
+  };
+  if (nGears === 2) { for (const B of teeth) for (const A of teeth) if ((A !== B || inv.get(A) >= 2) && hit(A, B)) push(A, B); return out; }
+  const byProd = new Map(); // B*D -> [[B,D]]
+  for (const B of teeth) for (const D of teeth) { const k = B * D; if (!byProd.has(k)) byProd.set(k, []); byProd.get(k).push([B, D]); }
+  const found = [];
+  for (const A of teeth) for (const C of teeth) {
+    const ac = A * C;
+    if (ratio.approx) { for (const [k, l] of byProd) if (hit(ac, k)) for (const [B, D] of l) found.push([A, B, C, D]); continue; }
+    const t = BigInt(ac) * ratio.q; if (t % ratio.p) continue; // B*D must be the integer A*C*q/p
+    const l = byProd.get(Number(t / ratio.p)); if (l) for (const [B, D] of l) found.push([A, B, C, D]);
+  }
+  found.sort((x, y) => x[3] - y[3] || x[2] - y[2] || x[1] - y[1] || x[0] - y[0]); // original loop order
+  for (const [A, B, C, D] of found) if (inventoryHas(inv, [A, B, C, D]) && hit(A * C, B * D)) push(A, B, C, D);
+  return out;
+}
+export function exactCheck(ratio) { return ratio.approx ? (n, d) => Math.abs(n / d / ratio.approx - 1) <= (ratio.tol || 1e-12) : (n, d) => BigInt(n) * ratio.q === BigInt(d) * ratio.p; }
 
 // ---------------------------------------------------------------- bc-breakdown
 // For each W from..to: X = value / W (single precision), as the original

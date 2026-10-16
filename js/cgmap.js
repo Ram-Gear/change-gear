@@ -7,7 +7,7 @@
 //   cg_gear_sets (machine_id, kind 'indexing'|'differential')  teeth int[] = each tooth count repeated qty times
 //                                 notes = JSON {format:'rg-gears-1', name, note, gears:[{teeth,qty,note}]} - per-gear notes and
 //                                 any qty-0 rows (teeth[] cannot hold those); teeth[] stays the source of truth for quantities.
-//   cg_presets (machine_id, name 'z=<n>' (2nd+ set for the same z: 'z=<n>#2'...), inputs {z}, result {A,B,C,D,note})
+//   cg_presets (machine_id, name 'z=<n>' (2nd+ set for the same z: 'z=<n>#2'...), inputs {z}, result {A,B,C,D,note,name?})
 // Trains that use the machine's own list point at '@own:index' / '@own:differential' inside formulas.
 
 export const APP_TAG = 'ramgear-changegear';
@@ -50,7 +50,7 @@ export function presetsToRows(list) {
   return (list || []).map((p) => {
     const k = seen[p.z] = (seen[p.z] || 0) + 1;
     return { name: k === 1 ? `z=${p.z}` : `z=${p.z}#${k}`, inputs: { z: Number(p.z) },
-      result: { A: Number(p.A), B: Number(p.B), C: p.C ? Number(p.C) : null, D: p.D ? Number(p.D) : null, note: p.note || '' } };
+      result: { A: Number(p.A), B: Number(p.B), C: p.C ? Number(p.C) : null, D: p.D ? Number(p.D) : null, note: p.note || '', ...(p.label ? { name: String(p.label) } : {}) } };
   });
 }
 export function rowsToPresets(rows) {
@@ -59,6 +59,7 @@ export function rowsToPresets(rows) {
     const res = r.result || {};
     const p = { z, A: Number(res.A), B: Number(res.B), note: res.note || '' };
     if (res.C && res.D) { p.C = Number(res.C); p.D = Number(res.D); }
+    if (res.name) p.label = String(res.name); // v1.8.6 preset name (cg_presets.result.name, no schema change)
     return { p, name: r.name };
   }).sort((a, b) => a.p.z - b.p.z || String(a.name).localeCompare(String(b.name), 'en', { numeric: true })).map((x) => x.p);
 }

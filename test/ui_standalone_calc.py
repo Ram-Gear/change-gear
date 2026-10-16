@@ -57,7 +57,7 @@ with sync_playwright() as p:
         txt = ' '.join(card.inner_text().split())
         if 'Ratio needed: ' + want + ' ' not in txt: fails.append(f'fo10 index card ratio wrong (z={z_}): {txt[:200]}')
         if card.locator('tbody tr').count() == 0: fails.append(f'fo10 index: no gear matches (z={z_})')
-        if card.locator('select').nth(1).input_value() != 'fo10-index-20-88': fails.append('fo10 index: default inventory not FO-10 index gears')
+        if card.locator('select').nth(1).input_value() != 'legacy-20-88': fails.append('fo10 index: default gears not all 20-88 (v1.8.5)')
         card.locator('select').nth(2).select_option('2'); pg.wait_for_timeout(200)
         card = pg.locator('.card', has=pg.locator('h3:has-text("Index change gears")'))
         if card.locator('tbody tr').count() == 0: fails.append(f'fo10 index: no 2-gear matches (z={z_})')

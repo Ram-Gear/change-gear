@@ -380,5 +380,10 @@ export function evaluateMachine(def, inputs = {}, opts = {}) {
   const display = {};
   for (const [n] of env) display[n] = num.format(env.get(n));
   const reportText = compiled.report.map((items) => formatPrintLine(items, env, num));
-  return { ok: true, errors, warnings, env, num, display, reportText, compiled };
+  // v1.8.5: the same formulas in exact rational arithmetic, so index trains can be checked for ZERO error
+  let exactEnv = null;
+  if (!opts.noExact && num.id !== 'rational') {
+    try { const ex = evaluateMachine(def, inputs, { ...opts, compiled, numeric: 'rational', noExact: true }); if (ex.ok) exactEnv = ex.env; } catch (e) { exactEnv = null; }
+  }
+  return { ok: true, errors, warnings, env, num, display, reportText, compiled, exactEnv };
 }

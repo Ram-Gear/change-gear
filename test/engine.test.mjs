@@ -168,7 +168,7 @@ t('FO-10 index ratio and ranked index gears', () => {
   assert.equal(r2.num.toJS(r2.env.get('RIDX')), 1);
   const def = calc.BUILTIN_MACHINES.find((m) => m.id === 'tos-fo10-diff');
   const ti = def.trains.find((x) => x.kind === 'index');
-  assert.equal(ti.strategy, 'ranked'); assert.equal(ti.inventory, 'fo10-index-20-88');
+  assert.equal(ti.strategy, 'ranked'); assert.equal(ti.inventory, 'legacy-20-88'); // v1.8.5: all 20-88 like BASIC (was the qty-1 placeholder)
   assert.equal(def.trains[0].kind, 'differential'); assert.equal(def.trains[0].strategy, 'ranked');
   const inv = calc.BUILTIN_INVENTORIES.find((i) => i.id === 'fo10-index-20-88');
   assert.equal(inv.name, 'FO-10 index gears'); assert.equal(inv.gears.length, 69); assert.ok(inv.gears.every((g) => g.qty === 1));
@@ -178,7 +178,8 @@ t('FO-10 index ratio and ranked index gears', () => {
     const best = tr.list[0];
     assert.ok(Math.abs(best.err) < 1e-12 || Math.abs(best.ratio - 0.6) < 1e-12, JSON.stringify(best));
     if (gears === 2) assert.equal(best.A / best.B, 0.6);
-    else assert.ok(new Set([best.A, best.B, best.C, best.D]).size === 4); // one of each
+    else assert.equal(best.A * best.C * 5, best.B * best.D * 3); // exact (v1.8.5)
+    assert.ok(tr.list.every((v) => v.err === 0) && tr.exact && tr.exact.text === '3/5');
   }
 });
 console.log(`engine tests: ${n - failed}/${n} passed`);

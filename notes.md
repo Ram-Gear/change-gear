@@ -465,3 +465,46 @@ export/import with manuals, delete asks about the manual) and `test/ui_standalon
   restarts it. Find / Continue / Next 10 still work.
 - The first batch is identical to before; basic_compare still 0 mismatches.
 - Tests: test/reroll.test.mjs (in run_all.mjs), test/ui_reroll.py (both modes, all built-ins + an added machine).
+
+## v1.8.5 (2026-10-15) - missing gear options fixed; INDEX trains exact only (dev only, not published)
+Gary: "the app misses options the BASIC program finds". Full-set comparison (test/fullset.test.mjs) of the
+original search (A,B,C,D 20-88, .9999 <= PR <= 1.0001) against the app found two causes:
+1. **A<->C / B<->D swap de-duplication** (all ranked lists). 24/47 x 20/25 and 20/47 x 24/25 have the same ratio,
+   the app listed only one; BASIC lists each placement. Example FO-10 differential B=30 D=8 K=1 metric: BASIC
+   accepts 1958 trains, the app's ranked list could only ever reach 749 (1458 placements missing).
+   Fix: every placement is now its own option (`rankedSearch` key = exact A/B x C/D). The old behaviour is the
+   optional, labelled "Hide swapped duplicates (A<->C, B<->D)" tick box (train option `hideSwaps`).
+2. **One-of-each gear lists.** FO-10's index train used the placeholder "FO-10 index gears" (each tooth count
+   20-88 once), and new machines' own lists were made the same way, so any train repeating a tooth count
+   (24/47 x 20/20, 23/53 x 23/21 ...) was impossible - 306 trains for FO-10 z=47. Fix: the FO-10 index train now
+   defaults to "Original program: every tooth count 20-88" (up to 4 of each, like BASIC), and new machines' own
+   lists start at 20-88 x 4. Lists already saved in the database are NOT changed (no DB writes); when a section
+   uses a gear list other than 20-88 it now says so ("Only gears in ... are used") and how to see every option.
+   An empty gear list now says so plainly instead of "Inventory is empty".
+Not a cause: the 20-per-batch cap (the v1.8.4 reroll pages through everything) and the tolerance (blank = none).
+After the fix every BASIC differential train is offered on FO-10, Fauter, FD-500 and an added machine, in ranked
+and legacy mode (legacy = BASIC set, same order). basic_compare: 0 mismatches.
+
+**Gary's rule: INDEX results must be exact (zero error).** The machine's formulas are now also evaluated in exact
+rational arithmetic (BigInt fractions, `rational` backend in numeric.js; `exactEnv` on the result), e.g. FO-10
+RIDX = 24*K/Z = 24/47. Index lists (ranked and legacy, every machine, with reroll) show only trains with
+A*C*q = B*D*p in whole numbers (`exactIndexSearch`, in the original loop order). If none exists it says e.g.
+"No exact index train for z = 101 (index ratio 24/101) with these gears. A 101-tooth gear (or a saved preset) is
+needed." If an added machine's index formula uses SIN, SQR, PI etc. the ratio is not a fraction; then "exact"
+means equal to 12 significant digits, and the section says so.
+**Deliberate difference from BASIC:** source.bas has no FO-10 index gear search; its only change-gear search
+(lines 10010-10384, used for the differentials) accepts .9999 - 1.0001 (±0.01 %), not zero error. The app keeps
+that for the differential and applies zero error to index trains only (e.g. FO-10 z=47: BASIC's test would accept
+1694 trains, 1012 of them not exact; the app shows the 682 exact ones).
+
+## v1.8.6 (2026-10-15) - named index presets (dev only, not published)
+- Every machine's index section (built-ins and added machines, ranked and original-program search) has a
+  **Load preset** dropdown and gear fields A / B × C / D. Choosing a preset fills the fields and shows the train,
+  its ratio and error; typing gears or clicking a result row fills them too.
+- Admins: **Save as preset** (asks for a name), **Rename**, **Delete** (asks first). The per-row "Save as preset"
+  and "Save selected match" buttons also ask for a name. Viewers can only load.
+- Stored in `cg_presets.result.name` - no schema change (`result` is already free-form JSON; row `name` stays
+  `z=<n>` / `z=<n>#k`). Preset CSV gets an optional 7th column `name`. Presets without a name show "(no name)".
+- Index presets must be exact: any saved preset whose train is not exactly the index ratio (whole-number check)
+  is flagged "Not exact" in the dropdown, in the saved-preset table and in the train line.
+- Test: test/ui_named_presets.py (fake DB; FO-10 + an added machine, admin and viewer).

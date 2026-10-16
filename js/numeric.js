@@ -196,7 +196,55 @@ export function float64Backend(ctx) {
   };
 }
 
-export const BACKENDS = { gwbasic: gwbasicBackend, 'ieee-single': ieeeSingleBackend, float64: float64Backend };
+
+// v1.8.5: exact rational backend (BigInt fractions). Used only to check index trains for ZERO error.
+// Values are {p,q} (q>0, reduced) or {irr:true,v} once a non-rational step (SIN, SQR, PI, ^ fraction...) is used.
+export function rationalBackend() {
+  const ga = (a, b) => { a = a < 0n ? -a : a; b = b < 0n ? -b : b; while (b) [a, b] = [b, a % b]; return a; };
+  const R = (p, q = 1n) => { if (q === 0n) throw new M.BasicError('Division by zero'); if (q < 0n) { p = -p; q = -q; } const g = ga(p, q) || 1n; return { p: p / g, q: q / g }; };
+  const I = (v) => ({ irr: true, v });
+  const js = (a) => (a.irr ? a.v : Number(a.p) / Number(a.q));
+  const dec = (text) => {
+    const s = String(text).trim().replace(/[!#%]$/, '').replace(/d/i, 'e');
+    const m = /^([+-]?)(\d*)(?:\.(\d*))?(?:e([+-]?\d+))?$/i.exec(s);
+    if (!m || (m[2] === '' && (m[3] || '') === '')) { const n = Number(s); if (!isFinite(n)) throw new M.BasicError('Redo from start'); return I(n); }
+    let p = BigInt((m[2] || '0') + (m[3] || '')), q = 10n ** BigInt((m[3] || '').length); const e = Number(m[4] || 0);
+    if (e > 0) p *= 10n ** BigInt(e); else if (e < 0) q *= 10n ** BigInt(-e);
+    return R(m[1] === '-' ? -p : p, q);
+  };
+  const bin = (f, g) => (a, b) => (a.irr || b.irr ? I(g(js(a), js(b))) : f(a, b));
+  const cmp = (a, b) => (a.irr || b.irr ? Math.sign(js(a) - js(b)) : Number(a.p * b.q - b.p * a.q > 0n) - Number(a.p * b.q - b.p * a.q < 0n));
+  const floor = (a) => { const f = a.p / a.q; return R(a.p < 0n && f * a.q !== a.p ? f - 1n : f); };
+  const exactFn = (f, g) => (a) => (a.irr ? I(g(a.v)) : f(a));
+  const irrFn = (g) => (a) => I(g(js(a)));
+  const D2R = Math.PI / 180;
+  const round = (a) => { const t = R(2n * a.p + (a.p < 0n ? -a.q : a.q), 2n * a.q); return R(t.p / t.q); };
+  return {
+    id: 'rational', exact: true,
+    lit: dec, input: (text) => (String(text).trim() === '' ? R(0n) : dec(text)), assign: (v) => v,
+    fromInt: (n) => R(BigInt(n)), fromJS: (x) => (Number.isInteger(x) ? R(BigInt(x)) : I(x)),
+    add: bin((a, b) => R(a.p * b.q + b.p * a.q, a.q * b.q), (x, y) => x + y),
+    sub: bin((a, b) => R(a.p * b.q - b.p * a.q, a.q * b.q), (x, y) => x - y),
+    mul: bin((a, b) => R(a.p * b.p, a.q * b.q), (x, y) => x * y),
+    div: bin((a, b) => R(a.p * b.q, a.q * b.p), (x, y) => x / y),
+    pow: (a, b) => { if (!a.irr && !b.irr && b.q === 1n && b.p >= -64n && b.p <= 64n) { const e = b.p < 0n ? -b.p : b.p; let r = R(a.p ** e, a.q ** e); return b.p < 0n ? R(r.q, r.p) : r; } return I(Math.pow(js(a), js(b))); },
+    neg: (a) => (a.irr ? I(-a.v) : R(-a.p, a.q)),
+    eq: (a, b) => cmp(a, b) === 0, ne: (a, b) => cmp(a, b) !== 0, lt: (a, b) => cmp(a, b) < 0, gt: (a, b) => cmp(a, b) > 0, le: (a, b) => cmp(a, b) <= 0, ge: (a, b) => cmp(a, b) >= 0,
+    bool: (b) => R(b ? -1n : 0n), truthy: (v) => js(v) !== 0,
+    and: (a, b) => R(BigInt(Math.round(js(a)) & Math.round(js(b)))), or: (a, b) => R(BigInt(Math.round(js(a)) | Math.round(js(b)))), not: (a) => R(BigInt(~Math.round(js(a)))),
+    fn: {
+      ABS: exactFn((a) => R(a.p < 0n ? -a.p : a.p, a.q), Math.abs), SGN: exactFn((a) => R(BigInt(Math.sign(Number(a.p)))), Math.sign),
+      INT: exactFn(floor, Math.floor), FIX: exactFn((a) => R(a.p / a.q), Math.trunc), CINT: exactFn(round, Math.round), ROUND: exactFn(round, Math.round),
+      CSNG: (a) => a, CDBL: (a) => a,
+      SIN: irrFn(Math.sin), COS: irrFn(Math.cos), TAN: irrFn(Math.tan), ATN: irrFn(Math.atan), SQR: irrFn(Math.sqrt), EXP: irrFn(Math.exp), LOG: irrFn(Math.log),
+      ASIN: irrFn(Math.asin), ACOS: irrFn(Math.acos), SIND: irrFn((x) => Math.sin(x * D2R)), COSD: irrFn((x) => Math.cos(x * D2R)), TAND: irrFn((x) => Math.tan(x * D2R)),
+      ASIND: irrFn((x) => Math.asin(x) / D2R), ACOSD: irrFn((x) => Math.acos(x) / D2R), ATND: irrFn((x) => Math.atan(x) / D2R),
+    },
+    pi: () => I(Math.PI), toJS: js, format: (v) => (v.irr ? String(v.v) : v.q === 1n ? String(v.p) : `${v.p}/${v.q}`), typeOf: () => '#',
+  };
+}
+
+export const BACKENDS = { rational: rationalBackend, gwbasic: gwbasicBackend, 'ieee-single': ieeeSingleBackend, float64: float64Backend };
 export function makeBackend(id, ctx) {
   const f = BACKENDS[id || 'gwbasic'];
   if (!f) throw new Error(`Unknown numeric mode "${id}"`);
