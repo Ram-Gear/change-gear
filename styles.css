@@ -155,3 +155,18 @@ nav a .add-hint, nav a[href="#/admin-hint"] { color: #8a8a8a; font-style: italic
 .manual-panel { margin:8px 0; }
 .manual-list td { padding:3px 8px 3px 0; }
 .manual-list button, .manual-list a { margin-left:6px; }
+
+/* v1.8.9: Ram-Gear header + teal accents (reference: ram-gear.github.io/hb-durability). Page background stays #EAF7EA. */
+:root { --accent:#2E7386; --accent-hover:#245E6E; --accent2:#2E7386; --focus:#9FD3E1; }
+.topbar { background:linear-gradient(#2b3d47, #1d2b33); color:#fff; border-bottom:6px solid #2e7386; padding:10px 18px; align-items:center; flex-wrap:nowrap; overflow:hidden; box-sizing:content-box; height:46px; /* 10+46+10 + 6px border = 72px */ }
+.topbar .brand { display:flex; align-items:center; color:#fff; white-space:nowrap; flex:none; }
+.brand-icon { width:46px; height:46px; margin:0 12px 0 0; }
+button.primary, button.blue { background:var(--accent); border-color:var(--accent); color:#fff; }
+button.primary:hover, button.blue:hover { background:var(--accent-hover); border-color:var(--accent-hover); }
+button:focus-visible, a:focus-visible, input:focus, select:focus, textarea:focus { outline:3px solid var(--focus); outline-offset:1px; border-color:var(--accent); }
+.nav a.active { border-left-color:var(--accent); background:#e3f1f4; }
+.badge.builtin { background:#e3f1f4; color:var(--accent); }
+a { color:var(--accent); }
+.topbar .topnote { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.topbar { padding-right:96px; } /* room for the fixed "? Help" button */
+.topbar .user-box { flex:none; }

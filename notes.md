@@ -543,3 +543,7 @@ that for the differential and applies zero error to index trains only (e.g. FO-1
 - Storage: same bucket `cg-manuals`, `<machine id>/<file name>`, all files in the folder listed; no SQL change. Same-name upload replaces that file only. IndexedDB cache is now per file (key `<machine>/<name>`); v1.6-v1.8.7 records keyed by machine id are still read and can be uploaded ("Upload to shared storage" / Import-export page). Export bundles use `<machine>/<name>` keys with a `machine` field; old bundles still import.
 - Delete machine offers to delete all of its manuals.
 - Tests: new `test/ui_v188.py`; ui_v187 single-manual checks superseded; ui_presets_manual / ui_auth updated to the panel.
+
+## v1.8.9 (dev only, not published - waiting for Gary's OK)
+- Header restyled like hb-durability: gradient #2b3d47 -> #1d2b33, white text, 6px #2e7386 bottom border, 72px total (10px padding, 46px icon), single line (room left for the fixed "? Help" button).
+- Buttons/accents teal #2E7386, hover #245E6E, focus outline #9FD3E1; page background stays #EAF7EA.
