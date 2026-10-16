@@ -170,3 +170,8 @@ a { color:var(--accent); }
 .topbar .topnote { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .topbar { padding-right:96px; } /* room for the fixed "? Help" button */
 .topbar .user-box { flex:none; }
+
+/* v1.8.10: Clear button in the upper right of the Job details header */
+.job-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.job-head h3 { margin: 0; }
+#job-clear { margin-left: auto; }

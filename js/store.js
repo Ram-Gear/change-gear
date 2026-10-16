@@ -267,8 +267,13 @@ export async function getManualFile(id, name) {
 export async function putManual(id, blob, name) {
   if (await probeManuals() === 'shared') {
     const path = `${folder(id)}/${safeName(name)}`;
-    const up = await getClient().storage.from(MANUAL_BUCKET).upload(path, blob, { upsert: true, contentType: blob.type || 'application/pdf' });
-    if (up.error) throw up.error;
+    // v1.8.10: admins replace a same-name file (upsert); other users only add new files (no overwrite).
+    const up = await getClient().storage.from(MANUAL_BUCKET).upload(path, blob, { upsert: auth.canEdit === true, contentType: blob.type || 'application/pdf' });
+    if (up.error) {
+      const t = String(up.error.message || up.error);
+      if (!auth.canEdit && /exist|duplicate|409/i.test(t + (up.error.statusCode || ''))) throw new Error(`a manual named "${safeName(name)}" is already attached - rename the file, or ask an admin to replace it`);
+      throw up.error;
+    }
     if (local.manualsAvailable()) await local.putManual(id, blob, safeName(name)).catch(() => {});
     return safeName(name);
   }

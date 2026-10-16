@@ -547,3 +547,9 @@ that for the differential and applies zero error to index trains only (e.g. FO-1
 ## v1.8.9 (dev only, not published - waiting for Gary's OK)
 - Header restyled like hb-durability: gradient #2b3d47 -> #1d2b33, white text, 6px #2e7386 bottom border, 72px total (10px padding, 46px icon), single line (room left for the fixed "? Help" button).
 - Buttons/accents teal #2E7386, hover #245E6E, focus outline #9FD3E1; page background stays #EAF7EA.
+
+## v1.8.10 (2026-10-16, dev only, not published)
+- Manuals: "Attach a manual"/"Attach another manual" shown to every signed-in user (viewer too) on every My Machines entry (FD-500 Overton, Fauter, TOS FO-10, added machines); "Remove" only for admins. Admin uploads replace a same-name file (upsert); viewer uploads never overwrite ("already attached" message).
+- Proposed cg-manuals SQL in app/MANUALS-STORAGE.md (insert = cg_can_view, update policy dropped, delete = cg_can_edit). NOT applied - needs Gary's OK. Until then a viewer upload is refused by Storage and the panel shows the error.
+- Job details card: teal "Clear" button upper right of the header - inputs back to empty/defaults, results cleared, saved last entries deleted (stay cleared after reload). Machines + Hob RPM.
+- Tests: test/ui_v1810_manuals.py (mock policy 'current' and 'v1810' via localStorage cgmock.manualPolicy), test/ui_v1810_clear.py (screenshot /workspace/v1810_clear.png); ui_auth updated (viewer now has attach).

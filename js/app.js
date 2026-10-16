@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 import * as dataStore from './store.js';
-export const APP_VERSION = 'RAM-GEAR web v1.8.9 (2026-10-16)';
+export const APP_VERSION = 'RAM-GEAR web v1.8.10 (2026-10-16)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 function showStorageBanner(problem) {
@@ -18,6 +18,8 @@ const $nav = document.getElementById('nav');
 // v1.7: sign in first (same accounts as the QC Form). Role none / signed out sees only the login screen.
 const canEdit = () => dataStore.auth.canEdit === true;
 const canDelete = () => dataStore.auth.canDelete === true;
+// v1.8.10: every signed-in user (viewer too) may upload machine manuals; only admins (canDelete) may remove them.
+const canUploadManual = () => dataStore.auth.signedIn === true && dataStore.auth.canView === true;
 // v1.8 Verify & lock: a locked machine's definition (inputs, constants, formulas, outputs, trains) is frozen for everyone.
 const isLocked = (m) => !!(m && m.lock && m.lock.locked);
 const lockText = (m) => `Locked${m.lock.lockedBy ? ' by ' + m.lock.lockedBy : ''}${m.lock.lockedAt ? ' on ' + new Date(m.lock.lockedAt).toLocaleString() : ''}`;
@@ -364,8 +366,18 @@ function renderMachine(id) {
   const out = h('div', {});
   const hasIndex = (m.trains || []).some((t) => t.kind === 'index' && t.strategy === 'ranked');
   const presetCard = hasIndex ? presetEditor(m, () => { if (out.childNodes.length) calculate(true); }) : null;
-  $main.replaceChildren(...[head, h('div', { class: 'card job-card', id: 'job-card' }, h('h3', {}, 'Job details and inputs'), form), out, presetCard].filter(Boolean)); // v1.8.7: no 'null' text when there is no preset card
+  $main.replaceChildren(...[head, h('div', { class: 'card job-card', id: 'job-card' }, h('div', { class: 'job-head' }, h('h3', {}, 'Job details and inputs'), h('button', { type: 'button', class: 'primary', id: 'job-clear', title: 'Empty every job detail, clear the results and forget the last entries', onclick: clearJob }, 'Clear')), form), out, presetCard].filter(Boolean)); // v1.8.7: no 'null' text when there is no preset card
 
+  // v1.8.10: Clear = inputs back to empty/defaults, results gone, saved last entries forgotten (no return after reload).
+  function clearJob() {
+    for (const inp of m.inputs || []) {
+      const f = fields[inp.name.toUpperCase()]; if (!f) continue;
+      f.value = f.tagName === 'SELECT' ? String(inp.default !== undefined ? inp.default : inp.options[0].value) : (inp.default !== undefined ? String(inp.default) : '');
+      f.classList.remove('invalid');
+    }
+    out.replaceChildren();
+    delete store.lastInputs[m.id]; saveStore();
+  }
   function calculate(auto) {
     try { calculateInner(auto); } catch (e) {
       console.error(e);
@@ -1186,12 +1198,12 @@ function manualBar(m) {
       : `Kept in this browser only${dataStore.manualMode().reason ? ` - ${dataStore.manualMode().reason}` : ''}.`;
     note.className = err ? 'small err-text' : 'small muted';
     note.textContent = err ? `Manual problem: ${err}. Calculations still work.` : list.length ? where
-      : (canEdit() ? `No manual yet - use "Attach a manual (PDF)". ${where}` : 'No manual attached.');
+      : (canUploadManual() ? `No manual yet - use "Attach a manual (PDF)". ${where}` : 'No manual attached.');
     const rows = list.map((r) => h('tr', { class: 'manual-row' },
       h('td', {}, r.name, r.localOnly ? h('span', { class: 'small muted' }, ' (only in this browser)') : null),
       h('td', { class: 'num' }, size(r)),
       h('td', {}, h('a', { href: '#', class: 'manual-open', onclick: (ev) => { ev.preventDefault(); openManual(m, r.name); } }, 'Open'),
-        (r.localOnly && canEdit()) ? h('button', { class: 'blue manual-migrate', onclick: async () => {
+        (r.localOnly && canUploadManual()) ? h('button', { class: 'blue manual-migrate', onclick: async () => {
           try { await dataStore.uploadLocalManual(m.id); refresh(); } catch (e) { err = (e && e.message) || String(e); draw(); }
         } }, 'Upload to shared storage') : null,
         canDelete() ? h('button', { class: 'danger manual-remove', onclick: async () => {
@@ -1200,7 +1212,7 @@ function manualBar(m) {
         } }, 'Remove') : null)));
     bar.replaceChildren(...[h('b', {}, 'Machine manuals'), file,
       list.length ? h('table', { class: 'manual-list', id: 'manual-list' }, h('tbody', {}, rows)) : null,
-      canEdit() ? h('div', { class: 'row' }, h('button', { id: 'manual-attach-another', onclick: () => file.click(), disabled: err ? true : undefined }, list.length ? 'Attach another manual' : 'Attach a manual (PDF)')) : null,
+      canUploadManual() ? h('div', { class: 'row' }, h('button', { id: 'manual-attach-another', onclick: () => file.click(), disabled: err ? true : undefined }, list.length ? 'Attach another manual' : 'Attach a manual (PDF)')) : null,
       note].filter((x) => x !== null && x !== undefined && x !== false));
   };
   const refresh = () => dataStore.listMachineManuals(m.id).then((r) => {

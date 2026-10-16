@@ -101,7 +101,10 @@
             async list(prefix = '') { log.push({ storage: 'list', bucket, prefix, role: roleOf() }); if (!have()) return nb; if (!canV()) return { data: [], error: null };
               const pre = prefix ? prefix.replace(/\/?$/, '/') : '';
               return { data: Object.keys(B).filter((k) => k.startsWith(pre) && !k.slice(pre.length).includes('/')).map((k) => ({ name: k.slice(pre.length), id: k, metadata: { size: B[k].size, mimetype: B[k].type } })), error: null }; },
-            async upload(path, blob, o = {}) { log.push({ storage: 'upload', bucket, path, role: roleOf() }); if (!have()) return nb; if (!canE()) return deny;
+            async upload(path, blob, o = {}) { log.push({ storage: 'upload', bucket, path, role: roleOf() }); if (!have()) return nb;
+              // v1.8.10: localStorage 'cgmock.manualPolicy' = 'v1810' simulates the proposed SQL (insert = cg_can_view, no update policy)
+              if (ls.get('cgmock.manualPolicy') === 'v1810') { if (!canV()) return deny; if (B[path]) return { data: null, error: { statusCode: '409', message: o.upsert ? 'new row violates row-level security policy' : 'The resource already exists' } }; }
+              else if (!canE()) return deny;
               if (B[path] && !o.upsert) return { data: null, error: { statusCode: '409', message: 'The resource already exists' } };
               const b64 = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.readAsDataURL(blob); });
               B[path] = { b64, size: blob.size, type: o.contentType || blob.type || 'application/pdf' }; persist(); return { data: { path }, error: null }; },

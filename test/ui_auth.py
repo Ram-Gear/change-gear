@@ -73,7 +73,7 @@ with sync_playwright() as p:
         pv.click('#add-hint'); pv.wait_for_selector('#admin-hint-card')
         check(pv.inner_text('#hint-user') == 'vic' and 'viewer' in pv.inner_text('#hint-role') and pv.locator('#hint-signout').count() == 1, 'viewer: hint explains user/role, offers sign out')
         pv.goto(URL + '#/m/' + m['formulas']['def']['id']); pv.wait_for_selector('form.grid-form')
-        for sel, what in [('button:has-text("Edit index gears")', 'edit gears'), ('button:has-text("Duplicate")', 'duplicate'), ('#manual-attach-another', 'attach manual'), ('#preset-add', 'add preset'), ('#preset-save', 'save presets')]:
+        for sel, what in [('button:has-text("Edit index gears")', 'edit gears'), ('button:has-text("Duplicate")', 'duplicate'), ('#preset-add', 'add preset'), ('#preset-save', 'save presets')]:
             check(pv.locator(sel).count() == 0, f'viewer: no {what}')
         check(pv.locator('#preset-table tbody tr').count() == 1, 'viewer sees the shared preset')
         pv.fill('#in-Z', '47'); pv.fill('#in-K', '1')
