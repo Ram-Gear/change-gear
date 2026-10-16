@@ -142,3 +142,11 @@ nav a .add-hint, nav a[href="#/admin-hint"] { color: #8a8a8a; font-style: italic
 .brand-icon{width:32px;height:32px;border-radius:7px;vertical-align:middle;margin:-4px 10px 0 0;flex:none}
 .brand{display:flex;align-items:center}
 .brand span{margin-left:12px}
+/* v1.8.7: every machine name in My Machines is bold; the current page is shown by background + left bar */
+.nav a .machine-name { font-weight:600; }
+.nav a.active { background:#fbeeee; }
+/* v1.8.7: foldable machine header; job details card like the hb-durability cards */
+.head-toggle { background:none; border:1px solid #c9d3da; border-radius:6px; padding:4px 10px; cursor:pointer; color:#1d4f5c; white-space:nowrap; }
+.head-toggle:focus-visible { outline:3px solid #2E7386; outline-offset:2px; }
+.head-toggle .chev { display:inline-block; width:1em; }
+.card.job-card { border-top:5px solid #2E7386; border-radius:6px; }

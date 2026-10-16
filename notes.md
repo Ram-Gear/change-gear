@@ -508,3 +508,31 @@ that for the differential and applies zero error to index trains only (e.g. FO-1
 - Index presets must be exact: any saved preset whose train is not exactly the index ratio (whole-number check)
   is flagged "Not exact" in the dropdown, in the saved-preset table and in the train line.
 - Test: test/ui_named_presets.py (fake DB; FO-10 + an added machine, admin and viewer).
+
+## v1.8.7 (2026-10-16) - machine page layout, shared manuals, one machine menu (dev only, not published)
+- **Machine Manual** button moved into the machine page's top row, right after "Delete machine" (built-ins:
+  after their last toolbar button). It opens the manual; for an admin with no manual yet it attaches one; for a
+  viewer with no manual it is shown but disabled. The Manual row below (Attach/Replace, Open, Remove, status) stays.
+- **"null null" fix.** Cause: the DOM's `replaceChildren()` (not the `h()` helper) turns `null` arguments into the
+  text "null"; the manual row passed `null` for the buttons a user doesn't get (admin: 2, viewer: 3). The same bug
+  put a stray "null" on machines without an index section (no preset card) and on Import / export (no upload
+  card). All three now pass real nodes only; ui_v187.py scans every page for stray "null" text.
+  No manual -> no filename/size; manual -> real file name and size (e.g. "FO10 manual.pdf (3 KB)").
+- **Manuals in Supabase Storage** (private bucket `cg-manuals`, path `<machine id>/<file name>`; read =
+  signed in + cg_can_view(), upload/remove = cg_can_edit()). SQL for the bucket + storage.objects policies:
+  app/MANUALS-STORAGE.md - NOT applied (QC Form's project). IndexedDB stays as the offline cache. Until the
+  bucket exists: "kept in this browser only - the shared manual storage (bucket cg-manuals) is not set up yet".
+  Once it exists, manuals only in this browser get "Upload to shared storage" (machine page) and
+  "Upload manuals to shared storage" (Import / export). Delete machine offers to delete the manual (shared too).
+  Export/import of manuals in the JSON bundle still uses the browser copy.
+  Read-only check 2026-10-16: GET /storage/v1/bucket/cg-manuals with the publishable key -> 404 Bucket not found.
+- **Menu:** "Original program" and "My machines" merged into one **My Machines** list (FD-500, Fauter, FO-10 and
+  every added machine); Hob RPM & cutting time (no gear trains) moved to a new **Tools** section. "None yet" is
+  gone (built-ins are always listed). Every machine name is bold; the current page keeps its pink background and
+  left bar. (Lees-Bradner looked bold only because it was the current page: `.nav a.active` was font-weight 600.)
+- **Foldable machine menu:** the machine header card above "Job details and inputs" (toolbar buttons, description,
+  lock note, gear-train admin, manual row, arithmetic note) folds behind a "▸ Show machine menu / ▾ Hide machine
+  menu" button (aria-expanded, keyboard Enter/Space, focus ring). Title stays visible. Folded by default; the last
+  choice is kept in localStorage `ramgear.cg.headFolded`. Tests unfold it via cgmock.install(unfold=True).
+- **Job details card:** border-top 5px solid #2E7386, border-radius 6px (like the hb-durability cards).
+- Fake Storage in test/mock_supabase.js (`storageBuckets`, or localStorage `cgmock.buckets`); test/ui_v187.py.

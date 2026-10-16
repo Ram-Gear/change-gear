@@ -69,6 +69,7 @@ export async function init(builtinMachines, removedBuiltinIds = []) {
 
 // Same sign-in as the QC Form: try the password; if that fails, ask rg-admin to activate the account once, then retry once.
 export async function signIn(username, pin) {
+  resetManualMode();
   const c = getClient();
   username = String(username || '').trim();
   if (!username || !String(pin || '')) throw new Error('Enter your username and PIN.');
@@ -85,6 +86,7 @@ export async function signIn(username, pin) {
   return auth;
 }
 export async function signOut() {
+  resetManualMode();
   try { await getClient().auth.signOut(); } finally { Object.assign(auth, { signedIn: false, username: '', role: 'none', canView: false, canEdit: false, canDelete: false }); snap = null; }
 }
 
@@ -203,10 +205,93 @@ export async function uploadLocalData(current) {
   return { machines: old.machines.length, inventories: old.inventories.length, builtins: Object.keys(old.builtinOverrides).length };
 }
 
-export const manualsAvailable = local.manualsAvailable;
-export const getManual = local.getManual;
-export const putManual = local.putManual;
-export const deleteManual = local.deleteManual;
+// ---------------------------------------------------------------- manuals (v1.8.7)
+// Shared: Supabase Storage, private bucket cg-manuals, one folder per machine id: '<machine id>/<file name>'.
+// Read = signed in + cg_can_view(), upload/remove = cg_can_edit() (storage.objects policies, MANUALS-STORAGE.md).
+// IndexedDB stays as an offline cache. If the bucket does not exist yet (or Storage is unreachable) everything
+// falls back to this-browser-only manuals, and manualMode() says why.
+export const MANUAL_BUCKET = 'cg-manuals';
+const mstate = { mode: 'unknown', reason: '' }; // 'shared' | 'local'
+export const manualMode = () => ({ ...mstate });
+const isMissing = (e) => /bucket not found|not ?found|404/i.test(errText(e)) || String(e && e.statusCode) === '404';
+const safeName = (n) => (String(n || 'manual.pdf').replace(/[^\w .()\-]+/g, '_').replace(/^\.+/, '').slice(0, 120) || 'manual.pdf');
+const folder = (id) => String(id).replace(/[^\w\-]+/g, '_');
+async function probeManuals() {
+  if (mstate.mode !== 'unknown') return mstate.mode;
+  if (!auth.signedIn || !auth.canView) { Object.assign(mstate, { mode: 'local', reason: 'not signed in' }); return mstate.mode; }
+  try {
+    const st = getClient().storage; if (!st) throw new Error('Storage not available');
+    const r = await st.from(MANUAL_BUCKET).list('', { limit: 1 });
+    if (r.error) throw r.error;
+    Object.assign(mstate, { mode: 'shared', reason: '' });
+  } catch (e) { Object.assign(mstate, { mode: 'local', reason: isMissing(e) ? 'the shared manual storage (bucket cg-manuals) is not set up yet' : errText(e) }); }
+  return mstate.mode;
+}
+export function resetManualMode() { Object.assign(mstate, { mode: 'unknown', reason: '' }); }
+async function remoteInfo(id) {
+  const r = await getClient().storage.from(MANUAL_BUCKET).list(folder(id));
+  if (r.error) throw r.error;
+  const f = (r.data || []).filter((x) => x && x.name && !x.name.startsWith('.'))[0];
+  return f ? { name: f.name, size: Number((f.metadata && f.metadata.size) || 0), path: `${folder(id)}/${f.name}` } : null;
+}
+export const localManualsAvailable = () => local.manualsAvailable();
+export const manualsAvailable = () => local.manualsAvailable() || mstate.mode === 'shared' || !!(getClient().storage);
+// Info only (no download): {name, size, shared, localOnly}. localOnly = only in this browser (can be uploaded).
+export async function getManualInfo(id) {
+  const loc = local.manualsAvailable() ? await local.getManual(id).catch(() => null) : null;
+  if (await probeManuals() === 'shared') {
+    const ri = await remoteInfo(id);
+    if (ri) return { name: ri.name, size: ri.size, shared: true };
+    if (loc) return { name: loc.name, size: loc.size, shared: false, localOnly: true };
+    return null;
+  }
+  return loc ? { name: loc.name, size: loc.size, shared: false } : null;
+}
+// Full record with blob (opens from the cache when it is the same file).
+export async function getManual(id) {
+  const loc = local.manualsAvailable() ? await local.getManual(id).catch(() => null) : null;
+  if (await probeManuals() !== 'shared') return loc;
+  const ri = await remoteInfo(id);
+  if (!ri) return loc;
+  if (loc && loc.name === ri.name && Number(loc.size) === ri.size) return { ...loc, shared: true };
+  const d = await getClient().storage.from(MANUAL_BUCKET).download(ri.path);
+  if (d.error) throw d.error;
+  const blob = d.data.type ? d.data : new Blob([d.data], { type: 'application/pdf' });
+  if (local.manualsAvailable()) await local.putManual(id, blob, ri.name).catch(() => {});
+  return { id, name: ri.name, size: blob.size, type: blob.type, blob, shared: true };
+}
+export async function putManual(id, blob, name) {
+  if (await probeManuals() === 'shared') {
+    const st = getClient().storage.from(MANUAL_BUCKET);
+    const old = await remoteInfo(id).catch(() => null);
+    const path = `${folder(id)}/${safeName(name)}`;
+    const up = await st.upload(path, blob, { upsert: true, contentType: blob.type || 'application/pdf' });
+    if (up.error) throw up.error;
+    if (old && old.path !== path) await st.remove([old.path]);
+    if (local.manualsAvailable()) await local.putManual(id, blob, safeName(name)).catch(() => {});
+    return;
+  }
+  return local.putManual(id, blob, name);
+}
+// Upload the manual kept in this browser to the shared storage (migration).
+export async function uploadLocalManual(id) {
+  const loc = await local.getManual(id);
+  if (!loc) throw new Error('no manual in this browser');
+  await putManual(id, loc.blob, loc.name);
+}
+export async function localOnlyManualIds() {
+  if (await probeManuals() !== 'shared' || !local.manualsAvailable()) return [];
+  const all = await local.listManuals().catch(() => []); const out = [];
+  for (const r of all) if (!(await remoteInfo(r.id).catch(() => true))) out.push(r.id);
+  return out;
+}
+export async function deleteManual(id) {
+  if (await probeManuals() === 'shared') {
+    const ri = await remoteInfo(id);
+    if (ri) { const r = await getClient().storage.from(MANUAL_BUCKET).remove([ri.path]); if (r.error) throw r.error; }
+  }
+  if (local.manualsAvailable()) await local.deleteManual(id).catch(() => {});
+}
 export const listManuals = local.listManuals;
 export const exportManuals = local.exportManuals;
 export const importManuals = local.importManuals;

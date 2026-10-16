@@ -88,6 +88,31 @@
         return { data: v, error: null };
       },
       from(t) { return new Q(t); },
+      // v1.8.7 fake Supabase Storage (private bucket cg-manuals): read = signed in + cg_can_view (viewer|admin),
+      // upload/remove = cg_can_edit (admin). opts.storageBuckets = [] simulates "bucket not created yet".
+      storage: {
+        from(bucket) {
+          const have = () => { const o = ls.get('cgmock.buckets'); return (o ? JSON.parse(o) : (opts.storageBuckets || ['cg-manuals'])).includes(bucket); }; // tests may flip 'cgmock.buckets'
+          const files = (db.__storage = db.__storage || {}); const B = (files[bucket] = files[bucket] || {});
+          const nb = { data: null, error: { statusCode: '404', error: 'Bucket not found', message: 'Bucket not found' } };
+          const canV = () => ['viewer', 'admin'].includes(roleOf()), canE = () => roleOf() === 'admin';
+          const deny = { data: null, error: { statusCode: '403', message: 'new row violates row-level security policy' } };
+          return {
+            async list(prefix = '') { log.push({ storage: 'list', bucket, prefix, role: roleOf() }); if (!have()) return nb; if (!canV()) return { data: [], error: null };
+              const pre = prefix ? prefix.replace(/\/?$/, '/') : '';
+              return { data: Object.keys(B).filter((k) => k.startsWith(pre) && !k.slice(pre.length).includes('/')).map((k) => ({ name: k.slice(pre.length), id: k, metadata: { size: B[k].size, mimetype: B[k].type } })), error: null }; },
+            async upload(path, blob, o = {}) { log.push({ storage: 'upload', bucket, path, role: roleOf() }); if (!have()) return nb; if (!canE()) return deny;
+              if (B[path] && !o.upsert) return { data: null, error: { statusCode: '409', message: 'The resource already exists' } };
+              const b64 = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.readAsDataURL(blob); });
+              B[path] = { b64, size: blob.size, type: o.contentType || blob.type || 'application/pdf' }; persist(); return { data: { path }, error: null }; },
+            async download(path) { log.push({ storage: 'download', bucket, path, role: roleOf() }); if (!have()) return nb; if (!canV() || !B[path]) return { data: null, error: { statusCode: '400', message: 'Object not found' } };
+              const bin = atob(B[path].b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+              return { data: new Blob([u], { type: B[path].type }), error: null }; },
+            async remove(paths) { log.push({ storage: 'remove', bucket, paths, role: roleOf() }); if (!have()) return nb; if (!canE()) return { data: [], error: null };
+              const out = []; for (const k of paths) if (B[k]) { delete B[k]; out.push({ name: k }); } persist(); return { data: out, error: null }; },
+          };
+        },
+      },
     };
     return () => client;
   }

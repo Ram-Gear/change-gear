@@ -23,7 +23,7 @@ with sync_playwright() as p:
     pg.on('dialog', lambda d: d.accept())
     pg.goto(URL); pg.evaluate('localStorage.clear()'); pg.evaluate("new Promise(r => { const q = indexedDB.deleteDatabase('ramgear-change-gear'); q.onsuccess = q.onerror = q.onblocked = () => r(); })")
     pg.goto(URL + '#/'); pg.reload()
-    check('v1.8.6' in pg.locator('#app-version').inner_text(), 'version v1.8.6')
+    check('v1.8.7' in pg.locator('#app-version').inner_text(), 'version v1.8.7')
     # --- presets on FO-10 (built-in override)
     fo10(pg, 101)
     hint = pg.locator('.prime-hint')
@@ -134,7 +134,7 @@ with sync_playwright() as p:
     check(not left, 'manual deleted with machine')
     # --- IndexedDB unavailable: clear message, calculation still works
     c2 = b.new_context(); c2.add_init_script("Object.defineProperty(window, 'indexedDB', { get() { throw new Error('blocked'); } })")
-    p2 = c2.new_page(); p2.set_default_timeout(180000); cgmock.install(p2)
+    p2 = c2.new_page(); p2.set_default_timeout(180000); cgmock.install(p2, buckets=[])  # v1.8.7: no shared bucket either
     p2.on('pageerror', lambda e: errors.append('pageerror (no IDB): ' + str(e)))
     p2.goto(URL + '#/m/tos-fo10-diff'); p2.wait_for_selector('#manual-status')
     out['noIdb'] = p2.locator('#manual-status').inner_text()

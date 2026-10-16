@@ -13,7 +13,7 @@ with sync_playwright() as p:
     pg.on('pageerror', lambda e: errors.append('pageerror: ' + str(e)))
     pg.on('console', lambda m: errors.append('console.error: ' + m.text) if m.type == 'error' else None)
     pg.on('dialog', lambda d: d.accept())
-    pg.goto(URL); pg.evaluate('localStorage.clear()'); pg.goto(URL + '#/new'); pg.wait_for_selector('#simple-index')
+    pg.goto(URL); pg.evaluate("localStorage.clear(); localStorage.setItem('ramgear.cg.headFolded', '0')"); pg.goto(URL + '#/new'); pg.wait_for_selector('#simple-index')  # v1.8.7: machine menu unfolded
     check(pg.locator('#const-index').input_value() == '24', 'index constant defaults to 24')
     check('KIDX * K / Z' in pg.locator('#simple-index').inner_text(), 'index formula shown')
     check(pg.locator('#const-differential').input_value() == '11.9367', 'differential constant default')

@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 import * as dataStore from './store.js';
-export const APP_VERSION = 'RAM-GEAR web v1.8.6 (2026-10-15)';
+export const APP_VERSION = 'RAM-GEAR web v1.8.7 (2026-10-16)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 function showStorageBanner(problem) {
@@ -42,8 +42,8 @@ function deleteMachine(m) {
   const own = Object.values(mm.ownInventories || {}).filter((iid) => store.inventories.some((x) => x.id === iid));
   if (own.length && confirm(`Also delete its gear lists (${own.map((iid) => store.inventories.find((x) => x.id === iid).name).join(', ')})?\nOK = delete them too, Cancel = keep them.`)) store.inventories = store.inventories.filter((x) => !own.includes(x.id));
   store.machines = store.machines.filter((x) => x.id !== mm.id); saveStore();
-  dataStore.getManual(mm.id).then((rec) => {
-    if (rec && confirm(`This machine has a manual attached (${rec.name}). Delete the manual too?\nOK = delete it, Cancel = keep it in this browser.`)) return dataStore.deleteManual(mm.id);
+  dataStore.getManualInfo(mm.id).then((rec) => {
+    if (rec && confirm(`This machine has a manual attached (${rec.name}${rec.shared ? ', shared storage' : ', this browser'}). Delete the manual too?\nOK = delete it, Cancel = keep it.`)) return dataStore.deleteManual(mm.id);
   }).catch(() => {}).finally(() => { location.hash = '#/'; });
 }
 // Remove an index / differential train from a DRAFT machine (its gear list is kept unless the admin also deletes it).
@@ -204,15 +204,19 @@ const fmtPct = (e) => { const t = (e * 100).toFixed(5); return (Number(t) === 0 
 const trimNum = (s) => String(s).trim();
 
 // ------------------------------------------------------------------ navigation
+const isTool = (m) => !(m.trains || []).length; // e.g. Hob RPM & cutting time: no gear trains
 function renderNav() {
   const cur = location.hash || '#/';
   const link = (href, ...label) => h('a', { href, class: cur === href || cur.startsWith(href + '/') ? 'active' : '' }, ...label);
   $nav.replaceChildren(
-    h('h3', {}, 'Original program'),
-    ...calc.BUILTIN_MACHINES.map((m) => link(`#/m/${m.id}`, h('span', { class: 'num' }, `(${m.menu})`), m.name)),
-    h('h3', {}, 'My machines'),
-    ...(store.machines.length ? store.machines.map((m) => link(`#/m/${m.id}`, h('span', { class: 'num' }, '•'), m.name)) : [h('div', { class: 'muted small', style: 'padding:2px 16px' }, 'None yet')]),
+    // v1.8.7: one "My Machines" list - original-program machines and added machines together (all names bold;
+    // the current page keeps its background + left bar). Calculators that are not machines go under Tools.
+    h('h3', {}, 'My Machines'),
+    ...calc.BUILTIN_MACHINES.filter((m) => !isTool(m)).map((m) => link(`#/m/${m.id}`, h('span', { class: 'num' }, `(${m.menu})`), h('span', { class: 'machine-name' }, m.name))),
+    ...store.machines.map((m) => link(`#/m/${m.id}`, h('span', { class: 'num' }, '•'), h('span', { class: 'machine-name' }, m.name))),
     canEdit() ? link('#/new', h('span', { class: 'num' }, '+'), 'Add a machine') : link('#/admin-hint', h('span', { class: 'num' }, '🔒'), h('span', { id: 'add-hint', class: 'add-hint' }, 'Sign in as admin to add machines')),
+    h('h3', {}, 'Tools'),
+    ...calc.BUILTIN_MACHINES.filter(isTool).map((m) => link(`#/m/${m.id}`, h('span', { class: 'num' }, `(${m.menu})`), m.name)),
     h('h3', {}, 'Setup'),
     link('#/inventories', h('span', { class: 'num' }, '⚙'), 'Gear inventories'),
     link('#/io', h('span', { class: 'num' }, '⇅'), 'Import / export'),
@@ -288,6 +292,7 @@ function renderMachine(id) {
   const compiled = calc.compileMachine(m);
   const last = store.lastInputs[m.id] || {};
   const fields = {};
+  const mbar = manualBar(m);
   const head = h('div', { class: 'card' },
     h('div', { class: 'row', style: 'justify-content:space-between' },
       h('h2', {}, m.builtin ? `(${m.menu}) ` : '', m.name, m.builtin ? h('span', { class: 'badge builtin' }, 'original program') : h('span', { class: 'badge' }, 'my machine'), lockBadge(m)),
@@ -298,16 +303,34 @@ function renderMachine(id) {
             h('button', { id: 'copy-draft', onclick: () => (location.hash = `#/copy/${m.id}`) }, isLocked(m) ? 'Copy to new draft' : 'Duplicate'),
             isLocked(m) ? null : h('button', { class: 'primary', id: 'verify-lock', onclick: () => verifyAndLock(m) }, 'Verify & lock'),
             ...['index', 'differential'].filter((k) => S.trainOf(m, k)).map((k) => h('button', { onclick: () => editMachineGears(m, k) }, `Edit ${k} gears`)),
-            canDelete() ? h('button', { class: 'danger', id: 'delete-machine', onclick: () => deleteMachine(m) }, 'Delete machine') : null])),
+            canDelete() ? h('button', { class: 'danger', id: 'delete-machine', onclick: () => deleteMachine(m) }, 'Delete machine') : null],
+        mbar.topButton)),
     h('p', { class: 'muted' }, m.description || ''),
     (!m.builtin && canEdit()) ? h('div', { class: 'msg info small', id: 'lock-help' }, isLocked(m)
       ? 'This machine is verified and locked: its formulas, constants, inputs and gear trains cannot be changed by anyone. Admins can still edit or clear its index and differential gear lists and its index presets, or use "Copy to new draft" to make a changed version.'
       : 'Draft: admins can still edit and test it. When the results are right, click "Verify & lock" to freeze its formulas and constants for good (gear lists and presets stay editable).') : null,
     (!m.builtin && canDelete()) ? gearTrainAdmin(m) : null,
-    manualBar(m),
+    mbar,
     m.numeric !== 'gwbasic' ? null : h('div', { class: 'small muted' }, legacyNumeric(m) === 'ieee-single'
       ? 'Arithmetic: QBasic-style single precision (setting on the start page). Switch back to GW-BASIC to match the verified results.'
       : 'Arithmetic: same single-precision GW-BASIC arithmetic as the original program (results match it digit for digit).'));
+  // v1.8.7: the machine header (toolbar buttons, description, notes, gear-train admin, manual) folds away.
+  // Folded by default; the last choice is remembered (localStorage). Title + toggle always stay visible.
+  {
+    const titleRow = head.firstChild; const toolbar = titleRow.children[1];
+    const body = h('div', { id: 'head-body' }); body.append(toolbar, ...[...head.childNodes].slice(1));
+    toolbar.style.marginTop = '6px';
+    const KEY = 'ramgear.cg.headFolded';
+    let folded = (() => { try { const v = localStorage.getItem(KEY); return v === null ? true : v === '1'; } catch (e) { return true; } })();
+    const tog = h('button', { type: 'button', id: 'head-toggle', class: 'head-toggle', 'aria-controls': 'head-body' });
+    const apply = () => {
+      body.hidden = folded; tog.setAttribute('aria-expanded', folded ? 'false' : 'true');
+      tog.replaceChildren(h('span', { class: 'chev', 'aria-hidden': 'true' }, folded ? '▸' : '▾'), folded ? ' Show machine menu' : ' Hide machine menu');
+      tog.title = folded ? 'Unfold the machine menu (buttons, notes, manual)' : 'Fold the machine menu away';
+    };
+    tog.addEventListener('click', () => { folded = !folded; try { localStorage.setItem(KEY, folded ? '1' : '0'); } catch (e) { /* blocked */ } apply(); });
+    titleRow.replaceChildren(titleRow.firstChild, tog); head.append(body); head.classList.add('machine-head'); apply();
+  }
   if (!compiled.ok) {
     $main.replaceChildren(head, msg('err', 'This machine has formula errors - open the editor to fix them:', h('ul', {}, compiled.errors.map((e) => h('li', {}, `${e.where}: ${e.msg}`)))));
     return;
@@ -336,7 +359,7 @@ function renderMachine(id) {
   const out = h('div', {});
   const hasIndex = (m.trains || []).some((t) => t.kind === 'index' && t.strategy === 'ranked');
   const presetCard = hasIndex ? presetEditor(m, () => { if (out.childNodes.length) calculate(true); }) : null;
-  $main.replaceChildren(head, h('div', { class: 'card' }, h('h3', {}, 'Job details and inputs'), form), out, presetCard);
+  $main.replaceChildren(...[head, h('div', { class: 'card job-card', id: 'job-card' }, h('h3', {}, 'Job details and inputs'), form), out, presetCard].filter(Boolean)); // v1.8.7: no 'null' text when there is no preset card
 
   function calculate(auto) {
     try { calculateInner(auto); } catch (e) {
@@ -1077,7 +1100,20 @@ function renderIO() {
       catch (e) { upMsg.replaceChildren(msg('err', 'Upload failed: ' + ((e && e.message) || e))); }
       ev.target.disabled = false;
     } }, 'Upload my local data to the shared database'), upMsg) : null;
-  $main.replaceChildren(uploadCard, h('div', { class: 'card' }, h('h2', {}, 'Import / export'),
+  // v1.8.7: manuals kept only in this browser can be moved to the shared storage (admin, once the bucket exists)
+  const migCard = h('div', {});
+  if (canEdit()) dataStore.localOnlyManualIds().then((ids) => {
+    if (!ids.length) return;
+    const mm = h('div', {});
+    migCard.replaceChildren(h('div', { class: 'card', id: 'manual-migrate-card' }, h('h2', {}, 'Manuals on this PC'),
+      h('p', {}, `${ids.length} machine manual(s) are kept only in this browser. Upload them so everyone signed in can open them.`),
+      h('button', { class: 'primary', id: 'manual-migrate-all', onclick: async (ev) => {
+        ev.target.disabled = true; let n = 0; const bad = [];
+        for (const id of ids) { try { await dataStore.uploadLocalManual(id); n++; } catch (e) { bad.push(`${id}: ${(e && e.message) || e}`); } }
+        mm.replaceChildren(msg(bad.length ? 'warn' : 'ok', `Uploaded ${n} manual(s).${bad.length ? ' Failed: ' + bad.join('; ') : ''}`));
+      } }, 'Upload manuals to shared storage'), mm));
+  }).catch(() => {});
+  $main.replaceChildren(...[uploadCard, migCard].filter(Boolean), h('div', { class: 'card' }, h('h2', {}, 'Import / export'),
     h('p', {}, 'Machines, their gear lists and presets, and gear-search settings for the original programs are kept in the shared RAM-GEAR database. Export them to a file for a backup.'),
     h('div', { class: 'row' }, h('button', { class: 'primary', id: 'export-json', onclick: async () => {
       let man;
@@ -1130,24 +1166,50 @@ function manualBar(m) {
   const bar = h('div', { class: 'row manual-bar', id: 'manual-bar' });
   const file = h('input', { type: 'file', accept: '.pdf,application/pdf', style: 'display:none', id: 'manual-file' });
   const note = h('span', { class: 'small muted', id: 'manual-status' });
+  // v1.8.7: the "Machine Manual" button sits in the top row beside "Delete machine" (manualBar(m).topButton);
+  // it opens the attached manual, or (admin, none attached yet) attaches one. Replace / Remove and the status stay here.
+  const top = h('button', { id: 'machine-manual' }, 'Machine Manual');
+  let cur = null, curErr = null;
+  top.addEventListener('click', () => { if (cur) openManual(m); else if (canEdit() && !curErr) file.click(); });
   const draw = (rec, err) => {
-    bar.replaceChildren(h('b', {}, 'Manual: '), file,
+    cur = rec || null; curErr = err || null;
+    const mode = dataStore.manualMode().mode;
+    top.disabled = !rec && (!canEdit() || !!err);
+    top.title = rec ? `Open ${rec.name}` : canEdit() ? 'Attach the machine manual (PDF)' : 'No manual attached';
+    // v1.8.7 fix: DOM replaceChildren() turns null into the text "null" (showed "null null") - pass real nodes only
+    bar.replaceChildren(...[h('b', {}, 'Manual: '), file,
       canEdit() ? h('button', { id: 'manual-attach', onclick: () => file.click(), disabled: err ? true : undefined }, rec ? 'Replace manual (PDF)' : 'Attach manual (PDF)') : null,
       rec ? h('button', { id: 'manual-open', onclick: () => openManual(m) }, 'Open manual') : null,
-      (rec && canDelete()) ? h('button', { id: 'manual-remove', onclick: async () => { if (!confirm(`Remove the manual "${rec.name}" from this browser?`)) return; await dataStore.deleteManual(m.id); draw(null); } }, 'Remove') : null,
-      note);
+      (rec && rec.localOnly && canEdit()) ? h('button', { class: 'blue', id: 'manual-migrate', onclick: async () => {
+        try { await dataStore.uploadLocalManual(m.id); refresh(); } catch (e) { draw(rec, (e && e.message) || String(e)); }
+      } }, 'Upload to shared storage') : null,
+      (rec && canDelete()) ? h('button', { id: 'manual-remove', onclick: async () => {
+        if (!confirm(`Remove the manual "${rec.name}"${rec.shared ? ' for everyone (shared storage)' : ' from this browser'}?`)) return;
+        try { await dataStore.deleteManual(m.id); refresh(); } catch (e) { draw(rec, (e && e.message) || String(e)); }
+      } }, 'Remove') : null,
+      note].filter((x) => x !== null && x !== undefined && x !== false));
     note.className = err ? 'small err-text' : 'small muted';
-    note.textContent = err ? `Manuals can't be stored in this browser: ${err}. Calculations still work.` : rec ? `${rec.name} (${Math.max(1, Math.round(rec.size / 1024))} KB) - kept in this browser only, not on the website or in the shared database.` : (canEdit() ? 'Kept in this browser only, never uploaded.' : 'No manual on this PC.');
+    const where = mode === 'shared' ? 'stored in the shared RAM-GEAR storage for everyone signed in (cached in this browser)'
+      : `kept in this browser only${dataStore.manualMode().reason ? ` - ${dataStore.manualMode().reason}` : ''}`;
+    const size = (r) => `${Math.max(1, Math.round((Number(r.size) || 0) / 1024))} KB`;
+    note.textContent = err ? `Manual problem: ${err}. Calculations still work.`
+      : (rec && rec.name) ? (rec.localOnly ? `${rec.name} (${size(rec)}) - only in this browser, not yet in the shared storage.` : `${rec.name} (${size(rec)}) - ${where}.`)
+        : (mode === 'shared' ? (canEdit() ? 'No manual yet. Attached manuals are shared with everyone signed in.' : 'No manual attached.') : (canEdit() ? `No manual yet - ${where}.` : 'No manual on this PC.'));
   };
+  const refresh = () => dataStore.getManualInfo(m.id).then((r) => {
+    if (dataStore.manualMode().mode !== 'shared' && !dataStore.localManualsAvailable()) return draw(null, `IndexedDB is not available (private window or blocked site data) and ${dataStore.manualMode().reason || 'the shared manual storage cannot be used'}`);
+    draw(r || null);
+  }).catch((e) => draw(null, (e && e.message) || String(e)));
   file.addEventListener('change', async () => {
     const f = file.files[0]; file.value = '';
     if (!f) return;
     if (!dataStore.looksLikePdf(f)) { alert('Please pick a PDF file.'); return; }
-    try { await dataStore.putManual(m.id, f, f.name); draw(await dataStore.getManual(m.id)); }
+    try { await dataStore.putManual(m.id, f, f.name); refresh(); }
     catch (e) { draw(null, (e && e.message) || String(e)); }
   });
   if (!dataStore.manualsAvailable()) draw(null, 'IndexedDB is not available (private window or blocked site data)');
-  else { draw(null); dataStore.getManual(m.id).then((r) => draw(r || null)).catch((e) => draw(null, (e && e.message) || String(e))); }
+  else { draw(null); refresh(); }
+  bar.topButton = top;
   return bar;
 }
 async function openManual(m) {

@@ -12,7 +12,7 @@ Every machine with an index train (FO-10 and machines made with *Add a machine*)
 - Presets for the FO-10 are kept as a built-in override. Presets go into the JSON backup, and the table has its own **Import CSV / Export CSV** with columns `z,A,B,C,D,note`.
 
 ### Machine manuals (PDF)
-Each machine screen has **Attach manual (PDF)**, **Open manual** (opens in a new tab) and **Remove**. The PDF is stored in this browser's IndexedDB only. It is never uploaded and never in this repository. If the browser blocks IndexedDB (private window, blocked site data) the app says so and calculations keep working. **Export to file** has an optional *Include manuals (larger file)* box that embeds the PDFs in the JSON, and Import restores them. Deleting a machine asks whether to delete its manual too.
+Each machine screen has **Machine Manual** (top row, beside Delete machine: opens the manual, or attaches one for an admin), plus **Attach / Replace manual (PDF)**, **Open manual** and **Remove**. PDFs go to the private Supabase Storage bucket `cg-manuals` (read: signed-in viewers/admins, upload/remove: admins; SQL in app/MANUALS-STORAGE.md) with an IndexedDB copy as offline cache. Until that bucket exists they stay in this browser's IndexedDB only, and the page says so. Never in this repository. If the browser blocks IndexedDB (private window, blocked site data) the app says so and calculations keep working. **Export to file** has an optional *Include manuals (larger file)* box that embeds the PDFs in the JSON, and Import restores them. Deleting a machine asks whether to delete its manual too.
 
 v1.5 (2026-10-13): **Add a machine** has an *Index ratio* section (Index constant, default 24: index = constant × hob starts ÷ z) and a *Differential ratio* section (Differential constant, Fauter/FD-500 style formula), each with its own gear list and search; either can be removed. Free-form formula editing is under *Advanced*. Each machine gets its own `<name> index gears` and `<name> differential gears` lists, with *Edit index gears* / *Edit differential gears* buttons on the machine screen.
 
@@ -44,7 +44,7 @@ v1.3 (2026-10-13): the Barber Colman index and feed, OFA-71A TOS and FD-320 Over
 See `notes.md` for details and verification against the original `source.bas`.
 
 ## v1.7 logins and shared data
-Sign in with your RAM-GEAR username and PIN (same as the QC Form). Machines, their index and differential gear lists and index presets are kept in the shared RAM-GEAR database (Supabase), so every PC sees the same data. Admins can add, edit and delete; viewers can calculate and view. Manual PDFs and last inputs stay on each PC. Details and the table mapping: notes.md, section 00.
+Sign in with your RAM-GEAR username and PIN (same as the QC Form). Machines, their index and differential gear lists and index presets are kept in the shared RAM-GEAR database (Supabase), so every PC sees the same data. Admins can add, edit and delete; viewers can calculate and view. Last inputs stay on each PC; manual PDFs are shared once the cg-manuals bucket exists (until then they stay on each PC). Details and the table mapping: notes.md, section 00.
 
 ## v1.8 Verify & lock and admin delete
 New machines start as a **Draft**. When the results are right, an admin clicks **Verify & lock**: after that its formulas,
