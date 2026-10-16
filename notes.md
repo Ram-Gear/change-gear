@@ -536,3 +536,10 @@ that for the differential and applies zero error to index trains only (e.g. FO-1
   choice is kept in localStorage `ramgear.cg.headFolded`. Tests unfold it via cgmock.install(unfold=True).
 - **Job details card:** border-top 5px solid #2E7386, border-radius 6px (like the hb-durability cards).
 - Fake Storage in test/mock_supabase.js (`storageBuckets`, or localStorage `cgmock.buckets`); test/ui_v187.py.
+
+## v1.8.8 (2026-10-16) - menu numbers, dots, Machine Manual panel, several manuals per machine
+- **Numbers in My Machines ("3 FD-500")**: cause was app.js renderNav() - the built-in machines (FD-500 Overton, Fauter, TOS FO-10) rendered `(${m.menu})`, their old BASIC menu key, in the `.num` span; only added machines (e.g. Lees-Bradner) got '•'. v1.8.7's menu change had only touched the name styling. Not the DB names, no CSS counter, no cache. Fix: every My Machines entry uses the same `<span class="num mdot">•</span>`; names go through `displayName()` which also strips any leading number from a stored name (DB rows not renamed). Also removed the `(3)` from machine page titles, the start-page table, the printout header and Tools entries.
+- **Manuals**: "Machine Manual (n)" in the top row opens a small panel listing all the machine's PDFs (name, size, Open link; Remove with confirm for admins) and an "Attach another manual" upload control (admins, multi-select). No standalone attach button and no lower Manual row any more.
+- Storage: same bucket `cg-manuals`, `<machine id>/<file name>`, all files in the folder listed; no SQL change. Same-name upload replaces that file only. IndexedDB cache is now per file (key `<machine>/<name>`); v1.6-v1.8.7 records keyed by machine id are still read and can be uploaded ("Upload to shared storage" / Import-export page). Export bundles use `<machine>/<name>` keys with a `machine` field; old bundles still import.
+- Delete machine offers to delete all of its manuals.
+- Tests: new `test/ui_v188.py`; ui_v187 single-manual checks superseded; ui_presets_manual / ui_auth updated to the panel.

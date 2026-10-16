@@ -228,69 +228,84 @@ async function probeManuals() {
   return mstate.mode;
 }
 export function resetManualMode() { Object.assign(mstate, { mode: 'unknown', reason: '' }); }
-async function remoteInfo(id) {
-  const r = await getClient().storage.from(MANUAL_BUCKET).list(folder(id));
+// v1.8.8: a machine can have any number of manuals - every PDF in its folder is listed.
+async function remoteList(id) {
+  const r = await getClient().storage.from(MANUAL_BUCKET).list(folder(id), { limit: 1000, sortBy: { column: 'name', order: 'asc' } });
   if (r.error) throw r.error;
-  const f = (r.data || []).filter((x) => x && x.name && !x.name.startsWith('.'))[0];
-  return f ? { name: f.name, size: Number((f.metadata && f.metadata.size) || 0), path: `${folder(id)}/${f.name}` } : null;
+  return (r.data || []).filter((x) => x && x.name && !x.name.startsWith('.') && x.id !== null)
+    .map((f) => ({ name: f.name, size: Number((f.metadata && f.metadata.size) || 0), path: `${folder(id)}/${f.name}` }));
 }
 export const localManualsAvailable = () => local.manualsAvailable();
 export const manualsAvailable = () => local.manualsAvailable() || mstate.mode === 'shared' || !!(getClient().storage);
-// Info only (no download): {name, size, shared, localOnly}. localOnly = only in this browser (can be uploaded).
-export async function getManualInfo(id) {
-  const loc = local.manualsAvailable() ? await local.getManual(id).catch(() => null) : null;
+const localList = async (id) => (local.manualsAvailable() ? await local.listMachineManuals(id).catch(() => []) : []);
+// All manuals of a machine, info only (no download): [{name, size, shared, localOnly}], sorted by name.
+// localOnly = only in this browser (can be uploaded to the shared storage).
+export async function listMachineManuals(id) {
+  const loc = await localList(id);
   if (await probeManuals() === 'shared') {
-    const ri = await remoteInfo(id);
-    if (ri) return { name: ri.name, size: ri.size, shared: true };
-    if (loc) return { name: loc.name, size: loc.size, shared: false, localOnly: true };
-    return null;
+    const rem = await remoteList(id);
+    const out = rem.map((r) => ({ name: r.name, size: r.size, shared: true }));
+    for (const l of loc) if (!rem.some((r) => r.name === safeName(l.name))) out.push({ name: l.name, size: l.size, shared: false, localOnly: true });
+    return out.sort((x, y) => x.name.localeCompare(y.name));
   }
-  return loc ? { name: loc.name, size: loc.size, shared: false } : null;
+  return loc.map((l) => ({ name: l.name, size: l.size, shared: false })).sort((x, y) => x.name.localeCompare(y.name));
 }
-// Full record with blob (opens from the cache when it is the same file).
-export async function getManual(id) {
-  const loc = local.manualsAvailable() ? await local.getManual(id).catch(() => null) : null;
+// One file with its blob (served from the per-file IndexedDB cache when it is the same file).
+export async function getManualFile(id, name) {
+  const loc = local.manualsAvailable() ? await local.getManualFile(id, name).catch(() => null) : null;
   if (await probeManuals() !== 'shared') return loc;
-  const ri = await remoteInfo(id);
+  const ri = (await remoteList(id)).find((r) => r.name === name);
   if (!ri) return loc;
-  if (loc && loc.name === ri.name && Number(loc.size) === ri.size) return { ...loc, shared: true };
+  if (loc && Number(loc.size) === ri.size) return { ...loc, shared: true };
   const d = await getClient().storage.from(MANUAL_BUCKET).download(ri.path);
   if (d.error) throw d.error;
   const blob = d.data.type ? d.data : new Blob([d.data], { type: 'application/pdf' });
   if (local.manualsAvailable()) await local.putManual(id, blob, ri.name).catch(() => {});
   return { id, name: ri.name, size: blob.size, type: blob.type, blob, shared: true };
 }
+// Add a manual (a file with the same name is replaced; other manuals are kept).
 export async function putManual(id, blob, name) {
   if (await probeManuals() === 'shared') {
-    const st = getClient().storage.from(MANUAL_BUCKET);
-    const old = await remoteInfo(id).catch(() => null);
     const path = `${folder(id)}/${safeName(name)}`;
-    const up = await st.upload(path, blob, { upsert: true, contentType: blob.type || 'application/pdf' });
+    const up = await getClient().storage.from(MANUAL_BUCKET).upload(path, blob, { upsert: true, contentType: blob.type || 'application/pdf' });
     if (up.error) throw up.error;
-    if (old && old.path !== path) await st.remove([old.path]);
     if (local.manualsAvailable()) await local.putManual(id, blob, safeName(name)).catch(() => {});
-    return;
+    return safeName(name);
   }
-  return local.putManual(id, blob, name);
+  await local.putManual(id, blob, name);
+  return name;
 }
-// Upload the manual kept in this browser to the shared storage (migration).
+// Upload this machine's browser-only manuals to the shared storage (migration of v1.6-v1.8.7 manuals).
 export async function uploadLocalManual(id) {
-  const loc = await local.getManual(id);
-  if (!loc) throw new Error('no manual in this browser');
-  await putManual(id, loc.blob, loc.name);
+  const todo = (await listMachineManuals(id)).filter((r) => r.localOnly);
+  if (!todo.length) throw new Error('no manual only in this browser');
+  for (const r of todo) {
+    const loc = await local.getManualFile(id, r.name);
+    await putManual(id, loc.blob, loc.name);
+    if (safeName(loc.name) !== loc.name) await local.deleteManualFile(id, loc.name).catch(() => {});
+  }
+  return todo.length;
 }
 export async function localOnlyManualIds() {
   if (await probeManuals() !== 'shared' || !local.manualsAvailable()) return [];
-  const all = await local.listManuals().catch(() => []); const out = [];
-  for (const r of all) if (!(await remoteInfo(r.id).catch(() => true))) out.push(r.id);
+  const ids = [...new Set((await local.listManuals().catch(() => [])).map(local.machineOf))]; const out = [];
+  for (const id of ids) { const l = await listMachineManuals(id).catch(() => []); if (l.some((r) => r.localOnly)) out.push(id); }
   return out;
 }
-export async function deleteManual(id) {
+export async function deleteManualFile(id, name) {
   if (await probeManuals() === 'shared') {
-    const ri = await remoteInfo(id);
+    const ri = (await remoteList(id)).find((r) => r.name === name);
     if (ri) { const r = await getClient().storage.from(MANUAL_BUCKET).remove([ri.path]); if (r.error) throw r.error; }
   }
-  if (local.manualsAvailable()) await local.deleteManual(id).catch(() => {});
+  if (local.manualsAvailable()) await local.deleteManualFile(id, name).catch(() => {});
+}
+// Delete every manual of a machine (Delete machine).
+export async function deleteMachineManuals(id) {
+  if (await probeManuals() === 'shared') {
+    const paths = (await remoteList(id)).map((r) => r.path);
+    if (paths.length) { const r = await getClient().storage.from(MANUAL_BUCKET).remove(paths); if (r.error) throw r.error; }
+  }
+  if (local.manualsAvailable()) await local.deleteMachineManuals(id).catch(() => {});
 }
 export const listManuals = local.listManuals;
 export const exportManuals = local.exportManuals;

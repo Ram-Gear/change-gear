@@ -17,13 +17,13 @@ def fo10(pg, z):
     for k, v in {'B': '30', 'D': '8', 'K': '1', 'Z': str(z)}.items(): pg.fill('#in-' + k, v)
     pg.click('button:has-text("Calculate")'); pg.wait_for_selector(IDX)
 with sync_playwright() as p:
-    b = p.chromium.launch(); ctx = b.new_context(accept_downloads=True, viewport={'width': 1300, 'height': 1000}); pg = ctx.new_page(); cgmock.install(pg); pg.set_default_timeout(180000); ctx.set_default_timeout(180000)
+    b = p.chromium.launch(); ctx = b.new_context(accept_downloads=True, viewport={'width': 1300, 'height': 1000}); pg = ctx.new_page(); cgmock.install(pg); pg.set_default_timeout(20000); ctx.set_default_timeout(180000)
     pg.on('pageerror', lambda e: errors.append('pageerror: ' + str(e)))
     pg.on('console', lambda m: errors.append('console.error: ' + m.text) if m.type == 'error' else None)
     pg.on('dialog', lambda d: d.accept())
     pg.goto(URL); pg.evaluate('localStorage.clear()'); pg.evaluate("new Promise(r => { const q = indexedDB.deleteDatabase('ramgear-change-gear'); q.onsuccess = q.onerror = q.onblocked = () => r(); })")
     pg.goto(URL + '#/'); pg.reload()
-    check('v1.8.7' in pg.locator('#app-version').inner_text(), 'version v1.8.7')
+    check('v1.8.8' in pg.locator('#app-version').inner_text(), 'version v1.8.8')
     # --- presets on FO-10 (built-in override)
     fo10(pg, 101)
     hint = pg.locator('.prime-hint')
@@ -67,18 +67,18 @@ with sync_playwright() as p:
     pg.reload(); pg.wait_for_selector('#preset-table')
     check(pg.locator('#preset-table tbody tr').count() == 2, 'presets kept after reload')
     # --- manual on FO-10
-    pg.goto(URL + '#/m/tos-fo10-diff'); pg.wait_for_selector('#manual-attach:has-text("Attach manual (PDF)")')
+    pg.goto(URL + '#/m/tos-fo10-diff'); pg.wait_for_selector('#manual-attach-another', state='attached')
     pg.set_input_files('#manual-file', pdf_path)
-    pg.wait_for_selector('#manual-open')
-    pg.reload(); pg.wait_for_selector('#manual-open')
-    out['manualStatus'] = pg.locator('#manual-status').inner_text()
+    pg.wait_for_selector('#manual-list .manual-open', state='attached')
+    pg.reload(); pg.wait_for_selector('#manual-list .manual-open', state='attached')
+    out['manualStatus'] = pg.locator('#manual-panel').text_content()
     check('FO10 manual.pdf' in out['manualStatus'], 'manual kept after reload')
     # Headless Chromium has no PDF viewer: a PDF opened in a tab becomes a download from the blob URL.
     got = {}
     def on_page(np): np.on('download', lambda dl: got.setdefault('dl', dl))
     ctx.on('page', on_page)
     with ctx.expect_page() as np:
-        pg.click('#manual-open')
+        pg.click('#machine-manual'); pg.click('#manual-list .manual-open')
     tab = np.value
     try: tab.wait_for_url('blob:*', timeout=20000)
     except Exception: pass
@@ -104,13 +104,13 @@ with sync_playwright() as p:
     pg.check('#incl-manuals')
     with pg.expect_download() as d: pg.click('#export-json')
     full_path = d.value.path(); full = json.load(open(full_path))
-    check('tos-fo10-diff' in full.get('manuals', {}), 'export with manuals embeds the PDF')
+    check(any(k.startswith('tos-fo10-diff/') for k in full.get('manuals', {})), 'export with manuals embeds the PDF')
     check(len(full['builtinOverrides']['tos-fo10-diff']['indexPresets']) == 2, 'presets in JSON export')
     pg.evaluate('localStorage.clear()'); pg.evaluate("new Promise(r => { const q = indexedDB.deleteDatabase('ramgear-change-gear'); q.onsuccess = q.onerror = q.onblocked = () => r(); })")
     pg.reload(); pg.goto(URL + '#/io'); pg.wait_for_selector('#export-json')
     pg.set_input_files('#main input[type=file]', full_path)
     pg.wait_for_selector('#import-now'); pg.click('#import-now'); pg.wait_for_selector('.msg.ok:has-text("Imported")')
-    pg.goto(URL + '#/m/tos-fo10-diff'); pg.wait_for_selector('#manual-open')
+    pg.goto(URL + '#/m/tos-fo10-diff'); pg.wait_for_selector('#manual-list .manual-open', state='attached')
     check(pg.locator('#preset-table tbody tr').count() == 2, 'presets restored by import')
     # --- custom machine: index .6 + presets + manual deleted with machine
     pg.goto(URL + '#/new'); pg.wait_for_selector('#machine-name'); pg.fill('#machine-name', 'Preset Hobber')
@@ -122,23 +122,23 @@ with sync_playwright() as p:
     check(float(res['Index ratio']) == 0.6, 'custom index .6')
     pg.locator('.save-row-preset').first.click(); pg.wait_for_selector(IDX + ' tr.preset-row')
     check(len([m for m in pg.evaluate("window.__rgData()")['machines'] if m['id'] == mid][0]['indexPresets']) == 1, 'custom preset stored on machine')
-    pg.set_input_files('#manual-file', pdf_path); pg.wait_for_selector('#manual-open')
+    pg.set_input_files('#manual-file', pdf_path); pg.wait_for_selector('#manual-list .manual-open', state='attached')
     dialogs = []
     pg.remove_listener('dialog', pg.listeners('dialog')[0]) if hasattr(pg, 'listeners') else None
     pg.on('dialog', lambda dlg: dialogs.append(dlg.message))
     pg.goto(URL + '#/edit/' + mid); pg.wait_for_selector('button:has-text("Delete machine")')
     pg.click('button:has-text("Delete machine")'); pg.wait_for_function("location.hash === '#/'")
     out['deleteDialogs'] = dialogs
-    check(any('manual attached' in x for x in dialogs), 'delete asks about the manual')
-    left = pg.evaluate(f"new Promise(r => {{ const q = indexedDB.open('ramgear-change-gear'); q.onsuccess = () => {{ const g = q.result.transaction('manuals').objectStore('manuals').get('{mid}'); g.onsuccess = () => r(!!g.result); }}; }})")
+    check(any('manual(s) attached' in x for x in dialogs), 'delete asks about the manual')
+    left = pg.evaluate(f"new Promise(r => {{ const q = indexedDB.open('ramgear-change-gear'); q.onsuccess = () => {{ const g = q.result.transaction('manuals').objectStore('manuals').getAll(); g.onsuccess = () => r(g.result.some(x => (x.machine || x.id) === '{mid}')); }}; }})")
     check(not left, 'manual deleted with machine')
     # --- IndexedDB unavailable: clear message, calculation still works
     c2 = b.new_context(); c2.add_init_script("Object.defineProperty(window, 'indexedDB', { get() { throw new Error('blocked'); } })")
     p2 = c2.new_page(); p2.set_default_timeout(180000); cgmock.install(p2, buckets=[])  # v1.8.7: no shared bucket either
     p2.on('pageerror', lambda e: errors.append('pageerror (no IDB): ' + str(e)))
-    p2.goto(URL + '#/m/tos-fo10-diff'); p2.wait_for_selector('#manual-status')
-    out['noIdb'] = p2.locator('#manual-status').inner_text()
-    check('IndexedDB is not available' in out['noIdb'] and p2.locator('#manual-attach').is_disabled(), 'clear message when IndexedDB is unavailable')
+    p2.goto(URL + '#/m/tos-fo10-diff'); p2.wait_for_selector('#manual-status', state='attached'); p2.wait_for_timeout(800)
+    out['noIdb'] = p2.locator('#manual-status').text_content()
+    check('IndexedDB is not available' in out['noIdb'] and p2.locator('#manual-attach-another').is_disabled(), 'clear message when IndexedDB is unavailable')
     for k, v in {'B': '30', 'D': '8', 'K': '1', 'Z': '40'}.items(): p2.fill('#in-' + k, v)
     p2.click('button:has-text("Calculate")'); p2.wait_for_selector('.results-table td.big')
     check('.6' in p2.locator('.results-table td.big').all_inner_texts(), 'calculation works without IndexedDB')

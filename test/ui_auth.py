@@ -52,7 +52,7 @@ with sync_playwright() as p:
         check(m['formulas'].get('app') == 'ramgear-changegear' and 'def' in m['formulas'], 'machine definition in formulas jsonb')
         kinds = sorted(g['kind'] for g in db['cg_gear_sets'] if g['machine_id'] == m['id'])
         check(kinds == ['differential', 'indexing'], f'own gear lists stored as cg_gear_sets {kinds}')
-        check(pg.locator('button:has-text("Edit index gears")').count() == 1 and pg.locator('#manual-attach').count() == 1, 'admin: edit gears + attach manual visible')
+        check(pg.locator('button:has-text("Edit index gears")').count() == 1 and pg.locator('#manual-attach-another').count() == 1, 'admin: edit gears + attach manual visible')
         pg.fill('#in-Z', '47'); pg.fill('#in-K', '1')
         for k in ['B', 'D']:
             if pg.locator('#in-' + k).count(): pg.fill('#in-' + k, '30' if k == 'B' else '8')
@@ -73,7 +73,7 @@ with sync_playwright() as p:
         pv.click('#add-hint'); pv.wait_for_selector('#admin-hint-card')
         check(pv.inner_text('#hint-user') == 'vic' and 'viewer' in pv.inner_text('#hint-role') and pv.locator('#hint-signout').count() == 1, 'viewer: hint explains user/role, offers sign out')
         pv.goto(URL + '#/m/' + m['formulas']['def']['id']); pv.wait_for_selector('form.grid-form')
-        for sel, what in [('button:has-text("Edit index gears")', 'edit gears'), ('button:has-text("Duplicate")', 'duplicate'), ('#manual-attach', 'attach manual'), ('#preset-add', 'add preset'), ('#preset-save', 'save presets')]:
+        for sel, what in [('button:has-text("Edit index gears")', 'edit gears'), ('button:has-text("Duplicate")', 'duplicate'), ('#manual-attach-another', 'attach manual'), ('#preset-add', 'add preset'), ('#preset-save', 'save presets')]:
             check(pv.locator(sel).count() == 0, f'viewer: no {what}')
         check(pv.locator('#preset-table tbody tr').count() == 1, 'viewer sees the shared preset')
         pv.fill('#in-Z', '47'); pv.fill('#in-K', '1')

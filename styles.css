@@ -150,3 +150,8 @@ nav a .add-hint, nav a[href="#/admin-hint"] { color: #8a8a8a; font-style: italic
 .head-toggle:focus-visible { outline:3px solid #2E7386; outline-offset:2px; }
 .head-toggle .chev { display:inline-block; width:1em; }
 .card.job-card { border-top:5px solid #2E7386; border-radius:6px; }
+
+/* v1.8.8 manuals panel */
+.manual-panel { margin:8px 0; }
+.manual-list td { padding:3px 8px 3px 0; }
+.manual-list button, .manual-list a { margin-left:6px; }

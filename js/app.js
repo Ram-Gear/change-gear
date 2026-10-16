@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 import * as dataStore from './store.js';
-export const APP_VERSION = 'RAM-GEAR web v1.8.7 (2026-10-16)';
+export const APP_VERSION = 'RAM-GEAR web v1.8.8 (2026-10-16)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 function showStorageBanner(problem) {
@@ -42,8 +42,8 @@ function deleteMachine(m) {
   const own = Object.values(mm.ownInventories || {}).filter((iid) => store.inventories.some((x) => x.id === iid));
   if (own.length && confirm(`Also delete its gear lists (${own.map((iid) => store.inventories.find((x) => x.id === iid).name).join(', ')})?\nOK = delete them too, Cancel = keep them.`)) store.inventories = store.inventories.filter((x) => !own.includes(x.id));
   store.machines = store.machines.filter((x) => x.id !== mm.id); saveStore();
-  dataStore.getManualInfo(mm.id).then((rec) => {
-    if (rec && confirm(`This machine has a manual attached (${rec.name}${rec.shared ? ', shared storage' : ', this browser'}). Delete the manual too?\nOK = delete it, Cancel = keep it.`)) return dataStore.deleteManual(mm.id);
+  dataStore.listMachineManuals(mm.id).then((list) => {
+    if (list.length && confirm(`This machine has ${list.length} manual(s) attached (${list.map((r) => r.name).join(', ')}). Delete all of its manuals too?\nOK = delete them, Cancel = keep them.`)) return dataStore.deleteMachineManuals(mm.id);
   }).catch(() => {}).finally(() => { location.hash = '#/'; });
 }
 // Remove an index / differential train from a DRAFT machine (its gear list is kept unless the admin also deletes it).
@@ -204,19 +204,24 @@ const fmtPct = (e) => { const t = (e * 100).toFixed(5); return (Number(t) === 0 
 const trimNum = (s) => String(s).trim();
 
 // ------------------------------------------------------------------ navigation
+// v1.8.8: display name without any leading menu number like '3 FD-500' / '(3) FD-500' / '3. FD-500' (stored names untouched)
+export const displayName = (m) => String((m && m.name) || '').replace(/^\s*\(?\d+\)?[.):\-]?\s+(?=\S)/, '');
 const isTool = (m) => !(m.trains || []).length; // e.g. Hob RPM & cutting time: no gear trains
 function renderNav() {
   const cur = location.hash || '#/';
   const link = (href, ...label) => h('a', { href, class: cur === href || cur.startsWith(href + '/') ? 'active' : '' }, ...label);
+  // v1.8.8: no menu numbers - the built-ins showed '(3)' etc. from their old BASIC menu key (m.menu). Every machine,
+  // built-in or added, gets the same single dot Lees-Bradner (an added machine) had; names shown without a leading number.
+  const machineLink = (m) => link(`#/m/${m.id}`, h('span', { class: 'num mdot' }, '•'), h('span', { class: 'machine-name' }, displayName(m)));
   $nav.replaceChildren(
     // v1.8.7: one "My Machines" list - original-program machines and added machines together (all names bold;
     // the current page keeps its background + left bar). Calculators that are not machines go under Tools.
     h('h3', {}, 'My Machines'),
-    ...calc.BUILTIN_MACHINES.filter((m) => !isTool(m)).map((m) => link(`#/m/${m.id}`, h('span', { class: 'num' }, `(${m.menu})`), h('span', { class: 'machine-name' }, m.name))),
-    ...store.machines.map((m) => link(`#/m/${m.id}`, h('span', { class: 'num' }, '•'), h('span', { class: 'machine-name' }, m.name))),
+    ...calc.BUILTIN_MACHINES.filter((m) => !isTool(m)).map((m) => machineLink(m)),
+    ...store.machines.map(machineLink),
     canEdit() ? link('#/new', h('span', { class: 'num' }, '+'), 'Add a machine') : link('#/admin-hint', h('span', { class: 'num' }, '🔒'), h('span', { id: 'add-hint', class: 'add-hint' }, 'Sign in as admin to add machines')),
     h('h3', {}, 'Tools'),
-    ...calc.BUILTIN_MACHINES.filter(isTool).map((m) => link(`#/m/${m.id}`, h('span', { class: 'num' }, `(${m.menu})`), m.name)),
+    ...calc.BUILTIN_MACHINES.filter(isTool).map((m) => link(`#/m/${m.id}`, h('span', { class: 'num' }, '•'), m.name)),
     h('h3', {}, 'Setup'),
     link('#/inventories', h('span', { class: 'num' }, '⚙'), 'Gear inventories'),
     link('#/io', h('span', { class: 'num' }, '⇅'), 'Import / export'),
@@ -254,7 +259,7 @@ function renderHome() {
       h('h2', {}, 'RAM-GEAR gear hobbing machine programs'),
       h('p', {}, 'Pick a program on the left. The programs kept from the original BASIC menu give exactly the same numbers as the old program. You can also add your own machines with their own formulas and gear inventories.'),
       h('table', {}, h('tr', {}, h('th', {}, 'Menu'), h('th', {}, 'Program'), h('th', {}, 'What it works out')),
-        calc.BUILTIN_MACHINES.map((m) => h('tr', {}, h('td', {}, `(${m.menu})`), h('td', {}, h('a', { href: `#/m/${m.id}` }, m.name)), h('td', { class: 'small' }, m.description)))),
+        calc.BUILTIN_MACHINES.map((m) => h('tr', {}, h('td', {}, '•'), h('td', {}, h('a', { href: `#/m/${m.id}` }, displayName(m))), h('td', { class: 'small' }, m.description)))),
     ),
     h('div', { class: 'card' }, h('h3', {}, 'Arithmetic used for the original programs'),
       (() => {
@@ -295,7 +300,7 @@ function renderMachine(id) {
   const mbar = manualBar(m);
   const head = h('div', { class: 'card' },
     h('div', { class: 'row', style: 'justify-content:space-between' },
-      h('h2', {}, m.builtin ? `(${m.menu}) ` : '', m.name, m.builtin ? h('span', { class: 'badge builtin' }, 'original program') : h('span', { class: 'badge' }, 'my machine'), lockBadge(m)),
+      h('h2', {}, displayName(m), m.builtin ? h('span', { class: 'badge builtin' }, 'original program') : h('span', { class: 'badge' }, 'my machine'), lockBadge(m)),
       h('div', { class: 'row' },
         !canEdit() ? [h('button', { onclick: () => (location.hash = `#/view/${m.id}`) }, 'View formulas')]
           : m.builtin ? [h('button', { onclick: () => (location.hash = `#/view/${m.id}`) }, 'View formulas'), h('button', { onclick: () => (location.hash = `#/copy/${m.id}`) }, 'Copy to edit')]
@@ -716,7 +721,7 @@ function renderBreakdown(m, res, t, st) {
 // ------------------------------------------------------------------ print sheet
 function printSheet(m, res, inputs, job, trainState) {
   const lines = ['', '', '                                 RAM-GEAR', '                       GEAR HOBBING MACHINE PROGRAMS', '', '',
-    `                         ${m.builtin ? `(${m.menu}) ` : ''}${m.name.toUpperCase()}`, '', ''];
+    `                         ${displayName(m).toUpperCase()}`, '', ''];
   for (const [label, v] of job) lines.push(`${label.toUpperCase()}: ${v}`);
   for (const inp of m.inputs || []) {
     if (inp.type === 'text') continue;
@@ -756,7 +761,7 @@ function renderEditor({ id, copyOf, readOnly }) {
     draft.name = m.name + ' (my copy)';
     draft.builtin = false;
     delete draft.menu; delete draft.lock;
-    if (m.builtin) draft.description = `Copied from original program (${m.menu}). ${m.description}`;
+    if (m.builtin) draft.description = `Copied from original program ${m.name}. ${m.description}`;
     delete draft.ownInventories;
     S.normalizeIndex(draft);
     for (const t of draft.trains || []) if (t.kind === 'index' || t.kind === 'differential') t.inventory = S.OWN_INV;
@@ -1161,62 +1166,66 @@ function renderHelp() {
 <p>Arithmetic setting: <b>Old BASIC single precision</b> reproduces the original program digit for digit (7 significant digits). <b>Normal</b> uses full double precision.</p>` }));
 }
 
-// ------------------------------------------------------------------ manual PDF (IndexedDB)
+// ------------------------------------------------------------------ manual PDFs (v1.8.8: several per machine)
+// Top row: "Machine Manual (n)" opens/closes a small panel listing all the machine's PDFs (name, size, Open link;
+// Remove for admins with a confirm) plus "Attach another manual" for admins. No standalone attach button, no Manual row.
 function manualBar(m) {
-  const bar = h('div', { class: 'row manual-bar', id: 'manual-bar' });
-  const file = h('input', { type: 'file', accept: '.pdf,application/pdf', style: 'display:none', id: 'manual-file' });
-  const note = h('span', { class: 'small muted', id: 'manual-status' });
-  // v1.8.7: the "Machine Manual" button sits in the top row beside "Delete machine" (manualBar(m).topButton);
-  // it opens the attached manual, or (admin, none attached yet) attaches one. Replace / Remove and the status stay here.
-  const top = h('button', { id: 'machine-manual' }, 'Machine Manual');
-  let cur = null, curErr = null;
-  top.addEventListener('click', () => { if (cur) openManual(m); else if (canEdit() && !curErr) file.click(); });
-  const draw = (rec, err) => {
-    cur = rec || null; curErr = err || null;
+  const bar = h('div', { class: 'card manual-panel', id: 'manual-panel', hidden: true });
+  const file = h('input', { type: 'file', accept: '.pdf,application/pdf', multiple: true, style: 'display:none', id: 'manual-file' });
+  const note = h('div', { class: 'small muted', id: 'manual-status' });
+  const top = h('button', { id: 'machine-manual', 'aria-controls': 'manual-panel', 'aria-expanded': 'false' }, 'Machine Manual');
+  let list = [], err = null;
+  const size = (r) => `${Math.max(1, Math.round((Number(r.size) || 0) / 1024))} KB`;
+  const show = (open) => { bar.hidden = !open; top.setAttribute('aria-expanded', open ? 'true' : 'false'); };
+  top.addEventListener('click', () => show(bar.hidden));
+  const draw = () => {
     const mode = dataStore.manualMode().mode;
-    top.disabled = !rec && (!canEdit() || !!err);
-    top.title = rec ? `Open ${rec.name}` : canEdit() ? 'Attach the machine manual (PDF)' : 'No manual attached';
-    // v1.8.7 fix: DOM replaceChildren() turns null into the text "null" (showed "null null") - pass real nodes only
-    bar.replaceChildren(...[h('b', {}, 'Manual: '), file,
-      canEdit() ? h('button', { id: 'manual-attach', onclick: () => file.click(), disabled: err ? true : undefined }, rec ? 'Replace manual (PDF)' : 'Attach manual (PDF)') : null,
-      rec ? h('button', { id: 'manual-open', onclick: () => openManual(m) }, 'Open manual') : null,
-      (rec && rec.localOnly && canEdit()) ? h('button', { class: 'blue', id: 'manual-migrate', onclick: async () => {
-        try { await dataStore.uploadLocalManual(m.id); refresh(); } catch (e) { draw(rec, (e && e.message) || String(e)); }
-      } }, 'Upload to shared storage') : null,
-      (rec && canDelete()) ? h('button', { id: 'manual-remove', onclick: async () => {
-        if (!confirm(`Remove the manual "${rec.name}"${rec.shared ? ' for everyone (shared storage)' : ' from this browser'}?`)) return;
-        try { await dataStore.deleteManual(m.id); refresh(); } catch (e) { draw(rec, (e && e.message) || String(e)); }
-      } }, 'Remove') : null,
-      note].filter((x) => x !== null && x !== undefined && x !== false));
+    top.textContent = list.length ? `Machine Manual (${list.length})` : 'Machine Manual';
+    top.title = list.length ? `Show this machine's ${list.length} manual(s)` : 'No manual attached yet';
+    const where = mode === 'shared' ? 'Stored in the shared RAM-GEAR storage for everyone signed in (cached in this browser).'
+      : `Kept in this browser only${dataStore.manualMode().reason ? ` - ${dataStore.manualMode().reason}` : ''}.`;
     note.className = err ? 'small err-text' : 'small muted';
-    const where = mode === 'shared' ? 'stored in the shared RAM-GEAR storage for everyone signed in (cached in this browser)'
-      : `kept in this browser only${dataStore.manualMode().reason ? ` - ${dataStore.manualMode().reason}` : ''}`;
-    const size = (r) => `${Math.max(1, Math.round((Number(r.size) || 0) / 1024))} KB`;
-    note.textContent = err ? `Manual problem: ${err}. Calculations still work.`
-      : (rec && rec.name) ? (rec.localOnly ? `${rec.name} (${size(rec)}) - only in this browser, not yet in the shared storage.` : `${rec.name} (${size(rec)}) - ${where}.`)
-        : (mode === 'shared' ? (canEdit() ? 'No manual yet. Attached manuals are shared with everyone signed in.' : 'No manual attached.') : (canEdit() ? `No manual yet - ${where}.` : 'No manual on this PC.'));
+    note.textContent = err ? `Manual problem: ${err}. Calculations still work.` : list.length ? where
+      : (canEdit() ? `No manual yet - use "Attach a manual (PDF)". ${where}` : 'No manual attached.');
+    const rows = list.map((r) => h('tr', { class: 'manual-row' },
+      h('td', {}, r.name, r.localOnly ? h('span', { class: 'small muted' }, ' (only in this browser)') : null),
+      h('td', { class: 'num' }, size(r)),
+      h('td', {}, h('a', { href: '#', class: 'manual-open', onclick: (ev) => { ev.preventDefault(); openManual(m, r.name); } }, 'Open'),
+        (r.localOnly && canEdit()) ? h('button', { class: 'blue manual-migrate', onclick: async () => {
+          try { await dataStore.uploadLocalManual(m.id); refresh(); } catch (e) { err = (e && e.message) || String(e); draw(); }
+        } }, 'Upload to shared storage') : null,
+        canDelete() ? h('button', { class: 'danger manual-remove', onclick: async () => {
+          if (!confirm(`Remove the manual "${r.name}"${r.shared ? ' for everyone (shared storage)' : ' from this browser'}?`)) return;
+          try { await dataStore.deleteManualFile(m.id, r.name); refresh(); } catch (e) { err = (e && e.message) || String(e); draw(); }
+        } }, 'Remove') : null)));
+    bar.replaceChildren(...[h('b', {}, 'Machine manuals'), file,
+      list.length ? h('table', { class: 'manual-list', id: 'manual-list' }, h('tbody', {}, rows)) : null,
+      canEdit() ? h('div', { class: 'row' }, h('button', { id: 'manual-attach-another', onclick: () => file.click(), disabled: err ? true : undefined }, list.length ? 'Attach another manual' : 'Attach a manual (PDF)')) : null,
+      note].filter((x) => x !== null && x !== undefined && x !== false));
   };
-  const refresh = () => dataStore.getManualInfo(m.id).then((r) => {
-    if (dataStore.manualMode().mode !== 'shared' && !dataStore.localManualsAvailable()) return draw(null, `IndexedDB is not available (private window or blocked site data) and ${dataStore.manualMode().reason || 'the shared manual storage cannot be used'}`);
-    draw(r || null);
-  }).catch((e) => draw(null, (e && e.message) || String(e)));
+  const refresh = () => dataStore.listMachineManuals(m.id).then((r) => {
+    err = null;
+    if (dataStore.manualMode().mode !== 'shared' && !dataStore.localManualsAvailable()) err = `IndexedDB is not available (private window or blocked site data) and ${dataStore.manualMode().reason || 'the shared manual storage cannot be used'}`;
+    list = r || []; draw();
+  }).catch((e) => { err = (e && e.message) || String(e); draw(); });
   file.addEventListener('change', async () => {
-    const f = file.files[0]; file.value = '';
-    if (!f) return;
-    if (!dataStore.looksLikePdf(f)) { alert('Please pick a PDF file.'); return; }
-    try { await dataStore.putManual(m.id, f, f.name); refresh(); }
-    catch (e) { draw(null, (e && e.message) || String(e)); }
+    const fs = [...file.files]; file.value = '';
+    if (!fs.length) return;
+    const bad = fs.filter((f) => !dataStore.looksLikePdf(f));
+    if (bad.length) { alert('Please pick PDF files only.'); return; }
+    try { for (const f of fs) await dataStore.putManual(m.id, f, f.name); show(true); refresh(); }
+    catch (e) { err = (e && e.message) || String(e); draw(); }
   });
-  if (!dataStore.manualsAvailable()) draw(null, 'IndexedDB is not available (private window or blocked site data)');
-  else { draw(null); refresh(); }
+  if (!dataStore.manualsAvailable()) { err = 'IndexedDB is not available (private window or blocked site data)'; draw(); }
+  else { draw(); refresh(); }
   bar.topButton = top;
   return bar;
 }
-async function openManual(m) {
+async function openManual(m, name) {
   const w = window.open('', '_blank');
   try {
-    const rec = await dataStore.getManual(m.id);
-    if (!rec) throw new Error('no manual attached');
+    const rec = await dataStore.getManualFile(m.id, name);
+    if (!rec) throw new Error('manual not found');
     const url = URL.createObjectURL(rec.blob.type ? rec.blob : new Blob([rec.blob], { type: 'application/pdf' }));
     if (w) w.location.href = url; else window.open(url, '_blank');
     setTimeout(() => URL.revokeObjectURL(url), 120000);

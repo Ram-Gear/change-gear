@@ -159,7 +159,7 @@ export function parseBundle(json) {
   const manuals = {};
   for (const [id, r] of Object.entries(data.manuals || {})) {
     if (!r || typeof r.data !== 'string' || !/^[A-Za-z0-9+/=\s]*$/.test(r.data)) { errors.push(`Manual for "${id}" is damaged and was skipped`); continue; }
-    manuals[id] = { name: String(r.name || 'manual.pdf'), type: String(r.type || 'application/pdf'), size: r.size, data: r.data.replace(/\s+/g, '') };
+    manuals[id] = { ...(r.machine ? { machine: String(r.machine) } : {}), name: String(r.name || 'manual.pdf'), type: String(r.type || 'application/pdf'), size: r.size, data: r.data.replace(/\s+/g, '') };
   }
   return { ok: errors.length === 0, errors, machines, inventories, builtinOverrides, manuals };
 }
