@@ -46,10 +46,10 @@ await t('CSV round trip + bad rows + header-less + semicolons', () => {
 });
 await t('bundle: presets on machines + built-in overrides survive export/import; bad presets dropped', () => {
   const m = calc.newMachineTemplate(); m.name = 'P'; m.indexPresets = [{ z: 101, A: 24, B: 101 }, { z: 'x', A: 1, B: 2 }];
-  const b = calc.makeBundle({ machines: [m], builtinOverrides: { 'tos-fo10-diff': { indexPresets: [{ z: 101, A: 24, B: 101, note: 'n' }] } } });
+  const b = calc.makeBundle({ machines: [m], builtinOverrides: { 'hob-rpm-time': { indexPresets: [{ z: 101, A: 24, B: 101, note: 'n' }] } } });
   const r = calc.parseBundle(JSON.stringify(b));
   assert.equal(r.machines[0].indexPresets.length, 1); assert.equal(r.errors.length, 1);
-  assert.equal(r.builtinOverrides['tos-fo10-diff'].indexPresets[0].note, 'n');
+  assert.equal(r.builtinOverrides['hob-rpm-time'].indexPresets[0].note, 'n');
   assert.equal(b.manuals, undefined, 'no manuals key unless asked');
 });
 await t('bundle: manuals base64 round trip', async () => {

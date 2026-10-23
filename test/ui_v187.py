@@ -31,11 +31,12 @@ with sync_playwright() as p:
     check('My Machines' in [x.title() if x.isupper() else x for x in heads] or any(x.lower() == 'my machines' for x in heads), f'one My Machines section {heads}')
     check(not any(x.lower() == 'original program' for x in heads) and sum(1 for x in heads if x.lower() == 'my machines') == 1, 'no separate Original program section')
     check('None yet' not in nav.inner_text(), 'no "None yet" (built-ins always listed)')
+    cgmock.add_fo10(pg, URL)  # v1.8.11: built-in FO-10 removed; Gary's own FO-10 is an added machine
     pg.goto(URL + '#/new'); pg.wait_for_selector('#simple-index'); pg.fill('#machine-name', 'Lees-Bradner Test'); pg.click('button:has-text("Save machine")'); pg.wait_for_selector('#verify-lock')
     mid = pg.url.split('#/m/')[1]
     names = pg.evaluate("""() => { const out = []; let sec = ''; for (const el of document.querySelectorAll('nav h3, nav a')) { if (el.tagName === 'H3') sec = el.textContent.toLowerCase(); else out.push([sec, el.textContent, getComputedStyle(el.querySelector('.machine-name') || el).fontWeight, el.className, getComputedStyle(el).backgroundColor]); } return out; }""")
     mm = [n for n in names if n[0] == 'my machines' and ('FD-500' in n[1] or 'Fauter' in n[1] or 'FO-10' in n[1] or 'Lees-Bradner Test' in n[1])]
-    check(len(mm) == 4, f'built-ins and the added machine listed together ({len(mm)})')
+    check(len(mm) == 2, f'added FO-10 and Lees-Bradner listed together ({len(mm)})')
     check(all(int(n[2]) >= 600 for n in mm), 'every machine name bold ' + str([n[2] for n in mm]))
     check(any(n[0] == 'tools' and 'Hob RPM' in n[1] for n in names), 'Hob RPM under Tools')
     act = [n for n in mm if 'active' in n[3]]; other = [n for n in mm if 'active' not in n[3]]
@@ -50,7 +51,8 @@ with sync_playwright() as p:
     check(st == ['5px', 'solid', 'rgb(46, 115, 134)', '6px'], f'job details card border-top/radius {st}')
     ctx.close()
     # --- folded header: default folded, keyboard, remembered
-    fctx, pf = page(b, 'gary', unfold=False); pf.goto(URL + '#/m/tos-fo10-diff'); pf.wait_for_selector('#head-toggle')
+    fctx, pf = page(b, 'gary', unfold=False); pf.goto(URL); pf.wait_for_selector('#user-box'); FO = cgmock.add_fo10(pf, URL)
+    pf.evaluate("localStorage.removeItem('ramgear.cg.headFolded')"); pf.goto(URL + '#/m/' + FO); pf.reload(); pf.wait_for_selector('#head-toggle')
     check(pf.locator('#head-body').is_hidden() and pf.get_attribute('#head-toggle', 'aria-expanded') == 'false' and '▸' in pf.inner_text('#head-toggle'), 'machine menu folded by default (chevron ▸)')
     check(pf.locator('#job-card').is_visible(), 'job details still visible when folded')
     pf.focus('#head-toggle'); pf.keyboard.press('Enter')
@@ -58,12 +60,12 @@ with sync_playwright() as p:
     pf.reload(); pf.wait_for_selector('#head-toggle')
     check(pf.locator('#head-body').is_visible(), 'unfolded state remembered after reload')
     pf.screenshot(path='/workspace/v187_machine_page.png')
-    pf.focus('#head-toggle'); pf.keyboard.press('Space'); pf.goto(URL + '#/m/fauter-diff'); pf.wait_for_selector('#head-toggle')
+    pf.focus('#head-toggle'); pf.keyboard.press('Space'); pf.goto(URL + '#/m/' + FO); pf.wait_for_selector('#head-toggle')
     check(pf.locator('#head-body').is_hidden(), 'Space folds; folded state remembered on other machines')
     pf.screenshot(path='/workspace/v187_machine_page_folded.png')
     J = "() => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); const o = []; let n; while ((n = w.nextNode())) if (/^\\s*null\\s*$|nullnull/.test(n.textContent)) o.push(n.parentElement.id || n.parentElement.tagName); return o; }"
     bad = []
-    for r in ['#/', '#/m/tos-fo10-diff', '#/m/fauter-diff', '#/m/fd500-diff', '#/m/hob-rpm-time', '#/io', '#/inventories', '#/help', '#/new']:
+    for r in ['#/', '#/m/' + FO, '#/m/' + FO, '#/m/tos-fo10-diff', '#/m/hob-rpm-time', '#/io', '#/inventories', '#/help', '#/new']:
         pf.goto(URL + r); pf.wait_for_timeout(500); o = pf.evaluate(J); bad += [(r, o)] if o else []
     check(not bad, f'no stray "null" text on any page {bad}')
     check(not errors, 'no page errors ' + '; '.join(errors[:3]))

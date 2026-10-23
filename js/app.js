@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 import * as dataStore from './store.js';
-export const APP_VERSION = 'RAM-GEAR web v1.8.10 (2026-10-16)';
+export const APP_VERSION = 'RAM-GEAR web v1.8.11 (2026-10-23)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 function showStorageBanner(problem) {
@@ -18,8 +18,9 @@ const $nav = document.getElementById('nav');
 // v1.7: sign in first (same accounts as the QC Form). Role none / signed out sees only the login screen.
 const canEdit = () => dataStore.auth.canEdit === true;
 const canDelete = () => dataStore.auth.canDelete === true;
-// v1.8.10: every signed-in user (viewer too) may upload machine manuals; only admins (canDelete) may remove them.
-const canUploadManual = () => dataStore.auth.signedIn === true && dataStore.auth.canView === true;
+// v1.8.11: Gary chose admin-only manual uploads (Storage insert/update/delete = cg_can_edit(), applied 2026-10-23).
+// Viewers see the list and Open plus a short note. (v1.8.10 had let every signed-in user upload.)
+const canUploadManual = () => canEdit();
 // v1.8 Verify & lock: a locked machine's definition (inputs, constants, formulas, outputs, trains) is frozen for everyone.
 const isLocked = (m) => !!(m && m.lock && m.lock.locked);
 const lockText = (m) => `Locked${m.lock.lockedBy ? ' by ' + m.lock.lockedBy : ''}${m.lock.lockedAt ? ' on ' + new Date(m.lock.lockedAt).toLocaleString() : ''}`;
@@ -294,7 +295,7 @@ function setTrainOverride(m, i, patch) {
 
 function renderMachine(id) {
   const m = findMachine(id);
-  if (!m && calc.REMOVED_BUILTIN_IDS.includes(id)) { $main.replaceChildren(msg('err', `"${id}" was one of the original programs and has been removed from this app (v1.3). Any copies you made are still under My machines.`)); return; }
+  if (!m && calc.REMOVED_BUILTIN_IDS.includes(id)) { $main.replaceChildren(msg('err', `"${id}" was one of the original programs and has been removed from this app. Any copies you made are still under My machines.`)); return; }
   if (!m) { $main.replaceChildren(msg('err', `Machine "${id}" not found.`)); return; }
   const compiled = calc.compileMachine(m);
   const last = store.lastInputs[m.id] || {};
@@ -1197,8 +1198,9 @@ function manualBar(m) {
     const where = mode === 'shared' ? 'Stored in the shared RAM-GEAR storage for everyone signed in (cached in this browser).'
       : `Kept in this browser only${dataStore.manualMode().reason ? ` - ${dataStore.manualMode().reason}` : ''}.`;
     note.className = err ? 'small err-text' : 'small muted';
-    note.textContent = err ? `Manual problem: ${err}. Calculations still work.` : list.length ? where
+    note.textContent = err ? (/limit is 50 MB per file/.test(err) ? err : `Manual problem: ${err.replace(/\.$/, '')}. Calculations still work.`) : list.length ? where
       : (canUploadManual() ? `No manual yet - use "Attach a manual (PDF)". ${where}` : 'No manual attached.');
+    const adminOnly = canUploadManual() ? null : h('div', { class: 'small muted', id: 'manual-admin-only' }, 'Only an admin can add manuals.');
     const rows = list.map((r) => h('tr', { class: 'manual-row' },
       h('td', {}, r.name, r.localOnly ? h('span', { class: 'small muted' }, ' (only in this browser)') : null),
       h('td', { class: 'num' }, size(r)),
@@ -1213,7 +1215,7 @@ function manualBar(m) {
     bar.replaceChildren(...[h('b', {}, 'Machine manuals'), file,
       list.length ? h('table', { class: 'manual-list', id: 'manual-list' }, h('tbody', {}, rows)) : null,
       canUploadManual() ? h('div', { class: 'row' }, h('button', { id: 'manual-attach-another', onclick: () => file.click(), disabled: err ? true : undefined }, list.length ? 'Attach another manual' : 'Attach a manual (PDF)')) : null,
-      note].filter((x) => x !== null && x !== undefined && x !== false));
+      adminOnly, note].filter((x) => x !== null && x !== undefined && x !== false));
   };
   const refresh = () => dataStore.listMachineManuals(m.id).then((r) => {
     err = null;
@@ -1225,6 +1227,9 @@ function manualBar(m) {
     if (!fs.length) return;
     const bad = fs.filter((f) => !dataStore.looksLikePdf(f));
     if (bad.length) { alert('Please pick PDF files only.'); return; }
+    // v1.8.11: 50 MB per file (bucket limit) - say so before trying, upload nothing
+    const big = fs.filter((f) => f.size > dataStore.MANUAL_MAX_BYTES);
+    if (big.length) { err = null; note.className = 'small err-text'; note.textContent = big.map((f) => dataStore.tooBigText(f.name, f.size)).join(' '); show(true); return; }
     try { for (const f of fs) await dataStore.putManual(m.id, f, f.name); show(true); refresh(); }
     catch (e) { err = (e && e.message) || String(e); draw(); }
   });

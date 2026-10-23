@@ -1,3 +1,4 @@
+import { FO10 } from './fixtures/machines_v1.8.11-fo10.mjs'; // removed built-in TOS FO-10 (v1.8.11), for its math
 // v1.5: simple Index / Differential setup and gear-list CSV import. Run: node test/simple_csv.test.mjs
 import assert from 'node:assert/strict';
 import * as calc from '../js/calc.js';
@@ -13,7 +14,7 @@ t('new machine template: index 24*K/Z and Fauter-like differential', () => {
   const r = calc.runMachine(m, { Z: '40', K: '1', B: '30', D: '8', Q: 1 });
   assert.ok(r.ok, String(r.errors));
   assert.equal(r.num.toJS(r.env.get('RIDX')), 0.6);
-  const f = calc.runMachine('fauter-diff', { B: '30', D: '8', K: '1', Q: 1 });
+  const f = calc.runMachine(FO10, { B: '30', D: '8', K: '1', Q: 1, Z: '40' });
   assert.ok(Math.abs(r.num.toJS(r.env.get('RDIFF')) - f.num.toJS(f.env.get('R'))) < 1e-6);
   const ri = r.num.toJS(r.env.get('RIDX'));
   for (const kind of ['index', 'differential']) {
@@ -34,22 +35,22 @@ t('remove and re-add sections', () => {
   assert.equal(r.num.toJS(r.env.get('RIDX')), 1);
 });
 t('copy of Fauter + index keeps the Fauter differential result exactly', () => {
-  const b = calc.BUILTIN_MACHINES.find((x) => x.id === 'fauter-diff');
+  const b = FO10;
   const m = JSON.parse(JSON.stringify(b)); m.id = 'custom-x'; m.builtin = false;
   assert.equal(simple.sectionInfo(m, 'differential').constant.name, 'O');
   simple.addIndex(m);
   const inp = { B: '22.5', D: '3', K: '1', Q: 1, Z: '40' };
-  const r = calc.runMachine(m, inp), f = calc.runMachine('fauter-diff', inp);
+  const r = calc.runMachine(m, inp), f = calc.runMachine(FO10, inp);
   assert.equal(r.num.format(r.env.get('R')), f.num.format(f.env.get('R')));
   assert.deepEqual(r.reportText, f.reportText);
   assert.equal(r.num.format(r.env.get('RIDX')).trim(), '.6');
 });
 t('copy of FO-10: index constant pulled into a box, same result', () => {
-  const b = calc.BUILTIN_MACHINES.find((x) => x.id === 'tos-fo10-diff');
+  const b = FO10;
   const m = simple.normalizeIndex(JSON.parse(JSON.stringify(b)));
   assert.equal(simple.sectionInfo(m, 'index').constant.expr, '24');
   const inp = { B: '30', D: '8', K: '3', Q: 1, Z: '41' };
-  const r = calc.runMachine({ ...m, id: 'c', builtin: false }, inp), f = calc.runMachine('tos-fo10-diff', inp);
+  const r = calc.runMachine({ ...m, id: 'c', builtin: false }, inp), f = calc.runMachine(FO10, inp);
   assert.equal(r.num.format(r.env.get('RIDX')), f.num.format(f.env.get('RIDX')));
 });
 t('CSV: header, qty default, notes, quotes', () => {

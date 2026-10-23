@@ -1,6 +1,6 @@
 """v1.8.6 named index presets (fake DB): Save as preset asks for a name (cg_presets.result.name), Load preset fills the
 gear fields and shows the train, Rename / Delete for admins, viewers can only load, non-exact presets are flagged.
-Built-in FO-10 and an added machine, ranked and original-program search."""
+Added FO-10 and another added machine, ranked and original-program search."""
 import sys, os, json
 from playwright.sync_api import sync_playwright
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import cgmock
@@ -30,9 +30,10 @@ def wait_db(pg, js): pg.wait_for_function("(() => { const d = JSON.parse(localSt
 with sync_playwright() as p:
     b = p.chromium.launch()
     pg = page(b, 'gary'); pg.goto(URL); pg.wait_for_selector('#user-box')
+    FO = cgmock.add_fo10(pg, URL)  # v1.8.11: built-in FO-10 removed; Gary's own FO-10 is an added machine
     pg.goto(URL + '#/new'); pg.wait_for_selector('#simple-index'); pg.fill('#machine-name', 'Preset Test Hobber'); pg.click('button:has-text("Save machine")'); pg.wait_for_selector('#verify-lock')
     custom = pg.url.split('#/m/')[1]
-    for mid in ['tos-fo10-diff', custom]:
+    for mid in [FO, custom]:
         calc(pg, mid)
         check(bar(pg).locator('select.preset-load').count() == 1, f'{mid}: Load preset dropdown in the index section')
         gears(pg, 24, 47, 20, 20)
@@ -55,7 +56,7 @@ with sync_playwright() as p:
         bar(pg).locator('select.preset-load').select_option(v)
         vals = [bar(pg).locator(f'[data-gear="{k}"]').input_value() for k in 'ABCD']
         check(vals == ['24', '47', '20', '20'] and '24/47 × 20/20' in bar(pg).locator('.preset-train').inner_text(), f'{mid}: Load preset fills the gear fields {vals} and shows the train')
-        if mid == 'tos-fo10-diff': pg.locator('.preset-bar').first.scroll_into_view_if_needed(); pg.locator('.out-card:has(.preset-bar)').first.screenshot(path=SHOT)
+        if mid == FO: pg.locator('.preset-bar').first.scroll_into_view_if_needed(); pg.locator('.out-card:has(.preset-bar)').first.screenshot(path=SHOT)
         # rename
         answers.append('Main hob 47 (checked)'); bar(pg).locator('.preset-rename').click()
         wait_db(pg, "d.cg_presets.some(p => p.result && p.result.name === 'Main hob 47 (checked)')")
@@ -74,7 +75,7 @@ with sync_playwright() as p:
     shared = db(pg)
     # viewer: can load, cannot save / rename / delete
     pv = page(b, 'vic', shared); pv.goto(URL); pv.wait_for_selector('#user-box')
-    calc(pv, 'tos-fo10-diff')
+    calc(pv, FO)
     check(bar(pv).locator('.preset-save, .preset-rename, .preset-delete').count() == 0, 'viewer: no Save / Rename / Delete')
     v = [o for o in bar(pv).locator('select.preset-load option').all() if 'Main hob 47 (checked)' in o.inner_text()][0].get_attribute('value')
     bar(pv).locator('select.preset-load').select_option(v)

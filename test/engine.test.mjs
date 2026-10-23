@@ -1,3 +1,5 @@
+import { FO10 } from './fixtures/machines_v1.8.11-fo10.mjs'; // removed built-in TOS FO-10 (v1.8.11), for its math
+import * as V12 from './fixtures/machines_v1.2.mjs';
 // Unit tests: formula language, validation, BASIC semantics, searches, import/export.
 import assert from 'node:assert/strict';
 import * as calc from '../js/calc.js';
@@ -95,7 +97,8 @@ t('built-in definitions compile and are read-only', () => {
 
 // --- searches
 t('legacy search reproduces the original first answer', () => {
-  const r = calc.runMachine('fd500-diff', { B: '30', D: '8', K: '1', Q: 0 });
+  // v1.8.11: built-in FD-500 removed from the app; check the original FD-500 routine via the v1.2 fixture def
+  const r = calc.runMachine(V12.BUILTIN_MACHINES.find((m) => m.id === 'fd500-diff'), { B: '30', D: '8', K: '1', Q: 0 });
   const [m1, m2] = calc.legacyFirstN(r.env.get('R'), r.num, 2);
   assert.deepEqual([m1.A, m1.B, m1.C, m1.D, m1.ratioText], [67, 78, 22, 20, '.9448718']);  // = PC-BASIC run of source.bas
   assert.deepEqual([m2.A, m2.B, m2.C, m2.D], [22, 78, 67, 20]);
@@ -129,14 +132,15 @@ t('bc-breakdown strategy still works for custom machines (Barber-Colman built-in
   assert.deepEqual(tr.tables[0].rows.filter((x) => x.whole).map((x) => x.W), [20, 30, 60]);
 });
 t('removed built-ins: old backups import cleanly', () => {
-  for (const id of ['bc-index', 'bc-feed', 'tos-ofa71a-diff', 'fd320-diff']) assert.ok(!calc.getBuiltin(id));
-  assert.deepEqual(calc.BUILTIN_MACHINES.map((m) => m.id), ['fd500-diff', 'fauter-diff', 'tos-fo10-diff', 'hob-rpm-time']);
+  for (const id of ['bc-index', 'bc-feed', 'tos-ofa71a-diff', 'fd320-diff', 'fd500-diff', 'fauter-diff', 'tos-fo10-diff']) assert.ok(!calc.getBuiltin(id));
+  assert.deepEqual(calc.BUILTIN_MACHINES.map((m) => m.id), ['hob-rpm-time']);
+  assert.ok(calc.REMOVED_BUILTIN_IDS.includes('tos-fo10-diff'));
   const copy = { ...calc.newMachineTemplate(), id: 'custom-copyofa', name: 'TOS OFA-71A (copy)' };
   const old = { ...calc.makeBundle({ machines: [copy], inventories: [], builtinOverrides: {} }),
-    builtinOverrides: { 'bc-index': { trains: { 0: { from: 30 } } }, 'fd320-diff': { trains: { 0: { strategy: 'ranked' } } }, 'fauter-diff': { trains: { 0: { strategy: 'ranked' } } } } };
+    builtinOverrides: { 'bc-index': { trains: { 0: { from: 30 } } }, 'fd320-diff': { trains: { 0: { strategy: 'ranked' } } }, 'tos-fo10-diff': { trains: { 0: { strategy: 'ranked' } } }, 'hob-rpm-time': { indexPresets: [] } } };
   const p = calc.parseBundle(JSON.stringify(old));
   assert.ok(p.ok, p.errors.join());
-  assert.deepEqual(Object.keys(p.builtinOverrides), ['fauter-diff']);
+  assert.ok(!p.builtinOverrides['tos-fo10-diff'] && !p.builtinOverrides['fd320-diff'] && !p.builtinOverrides['bc-index']);
   assert.equal(p.machines[0].name, 'TOS OFA-71A (copy)');
 });
 
@@ -144,13 +148,13 @@ t('removed built-ins: old backups import cleanly', () => {
 t('bundle round trip and validation', () => {
   const m = calc.newMachineTemplate();
   const inv = { id: 'inv-a', name: 'Box A', gears: [{ teeth: 20, qty: 2 }, { teeth: 40, qty: 1 }] };
-  const b = calc.makeBundle({ machines: [m, calc.BUILTIN_MACHINES[0]], inventories: [inv], builtinOverrides: { 'fd500-diff': { trains: { 0: { strategy: 'ranked' } } } } });
+  const b = calc.makeBundle({ machines: [m, calc.BUILTIN_MACHINES[0]], inventories: [inv], builtinOverrides: { 'hob-rpm-time': { indexPresets: [{ z: 101, A: 24, B: 101, note: '' }] } } });
   assert.equal(b.machines.length, 1); // built-ins are never exported, only their overrides
   const p = calc.parseBundle(JSON.stringify(b));
   assert.ok(p.ok, p.errors.join());
   assert.equal(p.machines[0].id, m.id);
   assert.equal(p.inventories[0].name, 'Box A');
-  assert.equal(p.builtinOverrides['fd500-diff'].trains[0].strategy, 'ranked');
+  assert.equal(p.builtinOverrides['hob-rpm-time'].indexPresets[0].z, 101);
   const bad = calc.parseBundle(JSON.stringify({ ...b, machines: [{ ...m, formulas: [{ name: 'X', expr: 'X+1' }] }] }));
   assert.ok(!bad.ok && /Circular/.test(bad.errors.join()));
   assert.ok(!calc.parseBundle('{"hello":1}').ok);
@@ -159,14 +163,14 @@ t('bundle round trip and validation', () => {
 // --- v1.4: FO-10 index train (24 x starts / z)
 t('FO-10 index ratio and ranked index gears', () => {
   const base = { B: '30', D: '8', K: '1', Q: 1 };
-  const diffRef = calc.runMachine('fauter-diff', base);
-  const r1 = calc.runMachine('tos-fo10-diff', { ...base, Z: '40' });
+  const diffRef = calc.runMachine(FO10, { ...base, Z: '40' });
+  const r1 = calc.runMachine(FO10, { ...base, Z: '40' });
   assert.ok(r1.ok, String(r1.errors));
   assert.equal(r1.num.format(r1.env.get('RIDX')).trim(), '.6');
   assert.equal(r1.num.format(r1.env.get('R')), diffRef.num.format(diffRef.env.get('R'))); // differential unchanged
-  const r2 = calc.runMachine('tos-fo10-diff', { ...base, K: '2', Z: '48' });
+  const r2 = calc.runMachine(FO10, { ...base, K: '2', Z: '48' });
   assert.equal(r2.num.toJS(r2.env.get('RIDX')), 1);
-  const def = calc.BUILTIN_MACHINES.find((m) => m.id === 'tos-fo10-diff');
+  const def = FO10;
   const ti = def.trains.find((x) => x.kind === 'index');
   assert.equal(ti.strategy, 'ranked'); assert.equal(ti.inventory, 'legacy-20-88'); // v1.8.5: all 20-88 like BASIC (was the qty-1 placeholder)
   assert.equal(def.trains[0].kind, 'differential'); assert.equal(def.trains[0].strategy, 'ranked');

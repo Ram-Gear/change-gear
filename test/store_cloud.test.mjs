@@ -1,3 +1,4 @@
+import { FO10 } from './fixtures/machines_v1.8.11-fo10.mjs'; // removed built-in TOS FO-10 (v1.8.11)
 // v1.7: shared-database mapping (cgmap.js) and store.js against an in-memory Supabase fake (no network).
 import assert from 'node:assert/strict';
 await import('./mock_supabase.js');
@@ -8,7 +9,9 @@ const calc = await import('../js/calc.js');
 const M = await import('../js/cgmap.js');
 let pass = 0; const ok = (c, m) => { assert.ok(c, m); pass++; };
 const eq = (a, b, m) => { assert.deepEqual(a, b, m); pass++; };
-const B = calc.BUILTIN_MACHINES;
+// v1.8.11: the app has no built-in with gear trains any more (TOS FO-10 removed); the built-in override
+// mapping is still exercised with the frozen FO-10 definition added to the built-in list for this test only.
+const B = [...calc.BUILTIN_MACHINES, FO10];
 
 // ---- gear list encoding
 const gears = [{ teeth: 20, qty: 2, note: 'worn' }, { teeth: 24, qty: 1 }, { teeth: 30, qty: 0, note: 'on order' }, { teeth: 101, qty: 1 }];
@@ -161,7 +164,7 @@ let adminData;
   eq(r.error.code, '42501');
 }
 { // one-time upload of v1.6 browser data by an admin
-  localStorage.setItem('ramgear.changegear.v1', JSON.stringify({ machines: [{ ...custom, id: 'm-old', name: 'Old PC machine' }], inventories: [data.inventories[0]], builtinOverrides: { 'fauter-diff': { trains: { 0: { inventory: 'inv-1', strategy: 'ranked' } } } }, lastInputs: {} }));
+  localStorage.setItem('ramgear.changegear.v1', JSON.stringify({ machines: [{ ...custom, id: 'm-old', name: 'Old PC machine' }], inventories: [data.inventories[0]], builtinOverrides: { 'tos-fo10-diff': { trains: { 0: { inventory: 'inv-1', strategy: 'ranked' } } } }, lastInputs: {} }));
   const { s } = await freshStore({ username: 'gary' });
   await s.init(B);
   ok(s.hasLocalData() && !s.localDataUploaded());
@@ -169,7 +172,7 @@ let adminData;
   const n = await s.uploadLocalData(d);
   eq(n, { machines: 1, inventories: 1, builtins: 1 });
   ok(db.cg_machines.some((m) => m.name === 'Old PC machine' && !m.deleted_at));
-  ok(db.cg_machines.some((m) => m.formulas.builtin === 'fauter-diff'));
+  ok(db.cg_machines.some((m) => m.formulas.builtin === 'tos-fo10-diff'));
   ok(s.localDataUploaded());
   const { s: sv } = await freshStore({ username: 'vic' }); await sv.init(B);
   await assert.rejects(() => sv.uploadLocalData({ machines: [], inventories: [], builtinOverrides: {}, lastInputs: {} }), /admin/); pass++;

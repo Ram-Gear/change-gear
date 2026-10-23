@@ -89,3 +89,15 @@ dropped, an admin uploading a same-name file gets "already exists" and must Remo
 upsert, and a same-name file gives "a manual named ... is already attached".
 Until this SQL is applied a viewer's upload is refused by Storage (RLS) and the panel shows that error.
 Undo: re-run the v1.8.7 insert/update policies above.
+
+## Policies as applied 2026-10-23 (admin-only uploads - Gary's choice)
+The v1.8.10 "anyone signed in may upload" proposal above was NOT applied. Live `storage.objects` policies for bucket
+`cg-manuals` (as applied Oct 23, by the Supabase owner, not by this app):
+- select: `cg_can_view()` (everyone signed in can list/open)
+- insert, update, delete: `cg_can_edit()` (admins only; update exists, so admin same-name replace uses upsert)
+- bucket: private, PDF only, file_size_limit 50 MB (52428800 bytes)
+
+App side (v1.8.11): "Attach a manual" / "Attach another manual" and "Upload to shared storage" are shown to admins only;
+viewers see the list, Open, and "Only an admin can add manuals." Files over 50 MB are refused before upload with
+"<name> is NN.N MB, and the shared storage limit is 50 MB per file. Compress the PDF or split it, then try again.";
+a server 413 / "too large" answer is shown the same way.

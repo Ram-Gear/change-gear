@@ -82,8 +82,8 @@ with sync_playwright() as p:
         pv.click('button:has-text("Calculate")'); pv.wait_for_selector('.results-table')
         check(pv.locator('.results-table td.big').count() >= 1, 'viewer can calculate')
         check(pv.locator('.save-row-preset').count() == 0 and pv.locator('#save-preset').count() == 0, 'viewer: no Save as preset')
-        pv.goto(URL + '#/m/tos-fo10-diff'); pv.wait_for_selector('form.grid-form')
-        check(pv.locator('button:has-text("Copy to edit")').count() == 0, 'viewer: no Copy to edit on built-in')
+        pv.goto(URL + '#/m/hob-rpm-time'); pv.wait_for_selector('form.grid-form')
+        check(pv.locator('button:has-text("Copy to edit")').count() == 0, 'viewer: no Copy to edit on built-in (Hob RPM)')
         pv.goto(URL + '#/new'); pv.wait_for_selector('.msg.warn')
         check(pv.locator('#simple-index').count() == 0, 'viewer: #/new blocked')
         pv.goto(URL + '#/edit/' + m['formulas']['def']['id']); pv.wait_for_selector('.badge.builtin')
@@ -98,12 +98,13 @@ with sync_playwright() as p:
         # admin: one-time upload of v1.6 browser data
         pa = page(b, 'gary'); pa.goto(URL)
         pa.evaluate("""localStorage.setItem('ramgear.changegear.v1', JSON.stringify({machines:[], inventories:[{id:'inv-old', name:'Old box', gears:[{teeth:50,qty:2,note:'n'}]}],
-            builtinOverrides:{'fauter-diff':{trains:{0:{inventory:'inv-old', strategy:'ranked'}}, indexPresets:[]}}, lastInputs:{}}))""")
+            builtinOverrides:{'tos-fo10-diff':{trains:{0:{inventory:'inv-old', strategy:'ranked'}}, indexPresets:[]}}, lastInputs:{}}))""")
         pa.goto(URL + '#/io'); pa.reload(); pa.wait_for_selector('#upload-local-go')
         pa.click('#upload-local-go'); pa.wait_for_selector('#upload-local-msg .msg')
         db = pa.evaluate("JSON.parse(localStorage.getItem('cgmock.db'))")
-        fr = [x for x in db['cg_machines'] if x['formulas'].get('builtin') == 'fauter-diff']
-        check(len(fr) == 1 and any(g['machine_id'] == fr[0]['id'] and g['teeth'] == [50, 50] for g in db['cg_gear_sets']), 'upload: built-in row created by name, gear list stored')
+        fr = [x for x in db['cg_machines'] if x['formulas'].get('builtin') == 'tos-fo10-diff']
+        # v1.8.11: tos-fo10-diff is a removed built-in, so its old browser override is dropped, never written to Supabase
+        check(len(fr) == 0 and not any(x['name'] == 'TOS FO-10' for x in db['cg_machines']), 'upload: removed built-in FO-10 override not written')
     check(not errors, 'no page errors ' + '; '.join(errors))
     b.close()
 print('FAILED: ' + '; '.join(fails) if fails else 'ALL AUTH UI CHECKS PASSED')

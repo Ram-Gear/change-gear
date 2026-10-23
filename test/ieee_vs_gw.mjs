@@ -1,6 +1,9 @@
 // Informational: how often would an IEEE single-precision BASIC (QBasic-style, rounding
 // after every operation) print something different from GW-BASIC's MBF arithmetic?
 import * as calc from '../js/calc.js';
+import { BUILTIN_MACHINES as V12_MACHINES } from './fixtures/machines_v1.2.mjs';
+// v1.8.11: the differential routines are no longer built in; use their frozen v1.2 definitions.
+const DEF = (id) => calc.getBuiltin(id) || V12_MACHINES.find((m) => m.id === id);
 let seed = 777;
 const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
 const dec = (a, b, d) => (a + rnd() * (b - a)).toFixed(d);
@@ -14,10 +17,10 @@ for (const [id, g] of Object.entries(gen)) {
   const examples = [];
   for (let i = 0; i < N; i++) {
     const inp = g();
-    const a = calc.runMachine(id, inp, { numeric: 'gwbasic' });
-    const b = calc.runMachine(id, inp, { numeric: 'ieee-single' });
+    const a = calc.runMachine(DEF(id), inp, { numeric: 'gwbasic' });
+    const b = calc.runMachine(DEF(id), inp, { numeric: 'ieee-single' });
     if (a.reportText.join('\n') !== b.reportText.join('\n')) { diffPrint++; if (examples.length < 2) examples.push(`${JSON.stringify(inp)}: GW ${JSON.stringify(a.reportText.join(' | '))} vs IEEE ${JSON.stringify(b.reportText.join(' | '))}`); }
-    const def = calc.getBuiltin(id);
+    const def = DEF(id);
     if (i < 300 && def.trains[0] && def.trains[0].strategy === 'legacy-ramgear') {
       const ma = calc.legacyFirstN(a.env.get('R'), a.num, 1, { maxD: 40 })[0];
       const mb = calc.legacyFirstN(b.env.get('R'), b.num, 1, { maxD: 40 })[0];

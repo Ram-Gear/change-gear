@@ -1,3 +1,4 @@
+import { FO10 } from './fixtures/machines_v1.8.11-fo10.mjs'; // removed built-in TOS FO-10 (v1.8.11), for its math
 // v1.8.5: FULL result-set comparison with the original program's search (A,B,C,D 20-88, .9999 <= PR <= 1.0001).
 //  - differential (ranked default + legacy): every train BASIC accepts is offered by the app (every placement)
 //  - index: only EXACT trains (Gary's rule) - all of them, checked with BigInt against a brute-force reference
@@ -11,13 +12,13 @@ const basicSet = (res, R) => { const out = []; for (const v of legacyRamgear(R, 
 const added = calc.newMachineTemplate(); // an added machine: index KIDX*K/Z, differential like Fauter
 const own = [{ id: '__own__', name: 'own', gears: ALL.gears }];
 const cases = [
-  ['tos-fo10-diff', { B: '30', D: '8', K: '1', Q: '1', Z: '47' }], ['tos-fo10-diff', { B: '15', D: '10', K: '2', Q: '0', Z: '101' }], ['tos-fo10-diff', { B: '5', D: '4', K: '1', Q: '1', Z: '60' }],
-  ['fauter-diff', { B: '22.5', D: '6', K: '1', Q: '1' }], ['fauter-diff', { B: '8', D: '12', K: '3', Q: '0' }],
-  ['fd500-diff', { B: '18', D: '12', K: '1', Q: '0' }], ['fd500-diff', { B: '35', D: '2.5', K: '1', Q: '1' }],
+  [FO10, { B: '30', D: '8', K: '1', Q: '1', Z: '47' }], [FO10, { B: '15', D: '10', K: '2', Q: '0', Z: '101' }], [FO10, { B: '5', D: '4', K: '1', Q: '1', Z: '60' }],
+  [FO10, { B: '22.5', D: '6', K: '1', Q: '1' }], [FO10, { B: '8', D: '12', K: '3', Q: '0' }],
+  [FO10, { B: '18', D: '12', K: '1', Q: '0' }], [FO10, { B: '35', D: '2.5', K: '1', Q: '1' }],
   [added, { Z: '37', K: '1', B: '20', D: '5', Q: '1' }], [added, { Z: '72', K: '2', B: '12.5', D: '7', Q: '0' }],
 ];
 for (const [mm, inp] of cases) {
-  const m = typeof mm === 'string' ? calc.getBuiltin(mm) : mm; const name = typeof mm === 'string' ? mm : 'added machine';
+  const m = typeof mm === 'string' ? calc.getBuiltin(mm) : mm; const name = typeof mm === 'string' ? mm : mm === FO10 ? 'tos-fo10 (v1.8.11 fixture)' : 'added machine';
   const res = calc.evaluateMachine(m, inp); if (!res.ok) { console.log(name, 'skip', res.errors); continue; }
   for (const t0 of m.trains) {
     const t = { ...t0, inventory: t0.inventory === '__own__' ? '__own__' : t0.inventory };

@@ -17,13 +17,13 @@ with sync_playwright() as p:
     def dlg(d): confirms.append(d.message); d.accept()
     pg.on('dialog', dlg)
     pg.goto(URL); pg.wait_for_selector('#user-box')
+    cgmock.add_fo10(pg, URL)  # v1.8.11: built-in FO-10 removed; a second added machine for the menu checks
     pg.goto(URL + '#/new'); pg.wait_for_selector('#simple-index'); pg.fill('#machine-name', '7 Lees-Bradner ZZ'); pg.click('button:has-text("Save machine")'); pg.wait_for_selector('#verify-lock')
     mid = pg.url.split('#/m/')[1]
     items = pg.evaluate("""() => { const o = []; let sec = ''; for (const el of document.querySelectorAll('nav h3, nav a')) { if (el.tagName === 'H3') sec = el.textContent.toLowerCase(); else if (sec === 'my machines' && el.querySelector('.machine-name')) o.push([el.textContent, [...el.querySelectorAll('.mdot')].map(d => d.textContent + getComputedStyle(d).color + getComputedStyle(d).width).join('|')]); } return o; }""")
-    check(len(items) >= 4 and all(not re.match(r'^\W*\d', t) for t, _ in items), f'no digits in front of names {[t for t, _ in items]}')
+    check(len(items) >= 2 and all(not re.match(r'^\W*\d', t) for t, _ in items), f'no digits in front of names {[t for t, _ in items]}')
     check(len({d for _, d in items}) == 1 and all('|' not in d and d.startswith('•') for _, d in items), 'exactly one identical dot on every machine')
     check(not re.search(r'\(\d\)', pg.inner_text('main h2')) and 'Lees-Bradner ZZ' in pg.inner_text('main h2'), 'page title without number')
-    pg.goto(URL + '#/m/fd500-diff'); pg.wait_for_selector('#machine-manual'); check(not re.search(r'\(\d\)', pg.inner_text('main h2')), 'built-in title without (3)')
     pg.goto(URL + '#/m/' + mid); pg.wait_for_selector('#machine-manual')
     check(pg.locator('#manual-attach').count() == 0 and pg.locator('#manual-bar').count() == 0 and pg.locator('#manual-panel').is_hidden(), 'no standalone attach, no lower Manual row, panel closed')
     pg.click('#machine-manual'); check(pg.locator('#manual-panel').is_visible() and pg.locator('#manual-attach-another').is_visible(), 'panel opens with upload control')

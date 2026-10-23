@@ -9,6 +9,10 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import * as calc from '../js/calc.js';
+import { BUILTIN_MACHINES as V12_MACHINES } from './fixtures/machines_v1.2.mjs';
+// v1.8.11: every original routine is now removed from the app, so the search is checked on the
+// frozen v1.2 definitions (same formulas). Only the search code (calc.legacyFirstN / legacy search) is under test.
+const DEF = Object.fromEntries(V12_MACHINES.map((m) => [m.id, m]));
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FIX = path.join(here, 'fixtures/legacy_search_ref.json');
@@ -20,7 +24,7 @@ const items = [];
 const ids = ['bc-feed', 'fd500-diff', 'fauter-diff', 'tos-ofa71a-diff', 'fd320-diff', 'tos-fo10-diff'];
 // v1.3: bc-feed, tos-ofa71a-diff and fd320-diff were removed at Gary's request. The RNG
 // sequence is unchanged, so the remaining machines' items are the same as in the cached fixture.
-const REMOVED = new Set(calc.REMOVED_BUILTIN_IDS);
+const REMOVED = new Set(['bc-feed', 'tos-ofa71a-diff', 'fd320-diff']); // as in v1.3 (keeps the cached fixture's item set)
 const refIds = fs.existsSync(FIX) ? new Set(JSON.parse(fs.readFileSync(FIX, 'utf8')).map((x) => x.id)) : null;
 for (let i = 0; i < 5000; i++) {
   const id = ids[i % ids.length];
@@ -28,7 +32,7 @@ for (let i = 0; i < 5000; i++) {
   const inputs = id === 'bc-feed' ? { CC: dec(1, 6, 2), CP: dec(.1, 1.2, 4), B: dec(5, 45, 2) } : { B: dec(1, 45, 2), D: metric ? dec(1, 10, 1) : String(Math.floor(2 + rnd() * 30)), K: rnd() < .8 ? '1' : '2', Q: metric ? 1 : 0 };
   if (REMOVED.has(id) || (refIds && !refIds.has(`${id}-${i}`))) continue;
   if (id === 'tos-fo10-diff') inputs.Z = '40'; // v1.4 index input (not used by R)
-  const r = calc.runMachine(id, inputs);
+  const r = calc.runMachine(DEF[id], inputs);
   const R = r.env.get('R');
   // keep ratios whose first 3 matches lie within D <= 40 so the slow Python reference finishes
   const first = calc.legacyFirstN(R, r.num, 3, { maxD: 40 });
@@ -42,7 +46,7 @@ if (process.argv.includes('--regen') || !fs.existsSync(FIX)) {
 const ref = new Map(JSON.parse(fs.readFileSync(FIX, 'utf8')).map((x) => [x.id, x]));
 let cases = 0, matches = 0, bad = 0;
 for (const it of items) {
-  const r = calc.runMachine(it.machine, it.inputs);
+  const r = calc.runMachine(DEF[it.machine], it.inputs);
   const got = calc.legacyFirstN(it.R, r.num, 3, { maxD: 40 });
   const exp = ref.get(it.id).matches;
   cases++;

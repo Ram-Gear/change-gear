@@ -102,6 +102,7 @@
               const pre = prefix ? prefix.replace(/\/?$/, '/') : '';
               return { data: Object.keys(B).filter((k) => k.startsWith(pre) && !k.slice(pre.length).includes('/')).map((k) => ({ name: k.slice(pre.length), id: k, metadata: { size: B[k].size, mimetype: B[k].type } })), error: null }; },
             async upload(path, blob, o = {}) { log.push({ storage: 'upload', bucket, path, role: roleOf() }); if (!have()) return nb;
+              if (ls.get('cgmock.force413') === '1') return { data: null, error: { statusCode: '413', message: 'The object exceeded the maximum allowed size' } }; // v1.8.11
               // v1.8.10: localStorage 'cgmock.manualPolicy' = 'v1810' simulates the proposed SQL (insert = cg_can_view, no update policy)
               if (ls.get('cgmock.manualPolicy') === 'v1810') { if (!canV()) return deny; if (B[path]) return { data: null, error: { statusCode: '409', message: o.upsert ? 'new row violates row-level security policy' : 'The resource already exists' } }; }
               else if (!canE()) return deny;

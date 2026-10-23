@@ -9,8 +9,7 @@ URL = sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8000/'
 SHOTS = sys.argv[2] if len(sys.argv) > 2 else None
 errors = []
 EX = {
-  'fd500-diff': {'B': '30', 'D': '8', 'K': '1'}, 'fauter-diff': {'B': '22.5', 'D': '3', 'K': '1', 'Q': '1'},
-  'tos-fo10-diff': {'B': '30', 'D': '8', 'K': '1', 'Z': '40'},
+  'FO10': {'B': '30', 'D': '8', 'K': '1', 'Z': '40'},   # v1.8.11: an added FO-10 (built-in removed)
   'hob-rpm-time': {'DA': '3', 'HELIX': '20', 'SF': '100', 'NT': '40', 'SN': '1', 'FEED': '.08', 'LC': '2', 'NC': '1', 'NP': '10', 'SETUP': '60'},
 }
 with sync_playwright() as p:
@@ -20,8 +19,9 @@ with sync_playwright() as p:
     pg.on('pageerror', lambda e: errors.append('pageerror: ' + str(e)))
     pg.goto(URL); pg.wait_for_selector('nav a')
     nav = pg.locator('nav').inner_text()
-    for gone in ['Barber', 'OFA-71A', 'FD-320']:
+    for gone in ['Barber', 'OFA-71A', 'FD-320', 'FD-500', 'Fauter', 'FO-10']:
         if gone in nav: errors.append('removed routine still in menu: ' + gone)
+    FO = cgmock.add_fo10(pg, URL); EX = {(FO if k == 'FO10' else k): v for k, v in EX.items()}
     results = {}
     for mid, vals in EX.items():
         pg.goto(URL + '#/m/' + mid); pg.wait_for_selector('form.grid-form')
@@ -53,7 +53,7 @@ with sync_playwright() as p:
     f = pg.locator('table.tbl-edit').nth(2).locator('input').nth(1)
     f.fill('RIDX * 2'); pg.wait_for_selector('.msg.err')
     results['circular'] = {'error': pg.locator('.msg.err').inner_text()[:200], 'saveDisabled': pg.locator('button:has-text("Save machine")').is_disabled()}
-    for page in ['#/inventories', '#/io', '#/help', '#/view/fd500-diff']:
+    for page in ['#/inventories', '#/io', '#/help', '#/view/' + FO, '#/m/tos-fo10-diff']:
         pg.goto(URL + page); pg.wait_for_timeout(300)
     b.close()
 print(json.dumps(results, indent=1))

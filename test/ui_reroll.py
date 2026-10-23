@@ -1,4 +1,4 @@
-"""v1.8.4 reroll UI: every gear-train section (built-ins FO-10 / Fauter / FD-500 and an added machine, ranked and
+"""v1.8.4 reroll UI: every gear-train section (an added FO-10 and another added machine, ranked and
 legacy search) has 'Show more / different options' + 'Start over' with its own no-repeat history."""
 import sys, os
 from playwright.sync_api import sync_playwright
@@ -20,9 +20,10 @@ with sync_playwright() as p:
     b = p.chromium.launch(); ctx = b.new_context(viewport={'width': 1300, 'height': 1000}); cgmock.install(ctx, 'gary'); pg = ctx.new_page(); pg.set_default_timeout(30000)
     pg.on('pageerror', lambda e: errors.append(str(e))); pg.on('dialog', lambda d: d.accept())
     pg.goto(URL); pg.wait_for_selector('#user-box')
+    FO = cgmock.add_fo10(pg, URL)  # v1.8.11: built-in FO-10 removed; Gary's own FO-10 is an added machine
     pg.goto(URL + '#/new'); pg.wait_for_selector('#simple-index'); pg.fill('#machine-name', 'Reroll Test Hobber'); pg.click('button:has-text("Save machine")'); pg.wait_for_selector('#verify-lock')
     custom = pg.url.split('#/m/')[1]
-    for mid in ['tos-fo10-diff', 'fauter-diff', 'fd500-diff', custom]:
+    for mid in [FO, custom]:
         calc(pg, mid)
         for mode in ['ranked', 'legacy-ramgear']:
           if mode != 'ranked':
@@ -46,7 +47,7 @@ with sync_playwright() as p:
                   c.locator('.reroll-reset').click(); pg.wait_for_function("c => c.querySelectorAll('tbody tr').length === 20", arg=c.element_handle(), timeout=60000)
                   check(rows(c) == r1, f'{mid} / {title}: legacy Start over = first 20 again')
     # separate histories: rerolling one section does not change another
-    calc(pg, 'tos-fo10-diff'); cards = pg.locator('.out-card:has(.reroll-status)')
+    calc(pg, FO); cards = pg.locator('.out-card:has(.reroll-status)')
     if cards.count() >= 2:
         a0 = rows(cards.nth(1)); cards.nth(0).locator('.reroll-more').click(); pg.wait_for_timeout(300)
         check(rows(cards.nth(1)) == a0, 'FO-10: sections keep separate histories')

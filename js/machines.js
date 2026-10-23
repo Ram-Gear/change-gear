@@ -48,20 +48,12 @@ function differential(id, menu, name, machineConst, constNote, metricExpr, inchE
 // Removed at Gary's request (v1.3, 2026-10-13): Barber-Colman index (1), Barber-Colman
 // feed (2), TOS OFA-71A (5) and FD-320 Overton (6). Saved settings for these ids are
 // ignored; custom copies Gary made are ordinary custom machines and are kept.
-export const REMOVED_BUILTIN_IDS = ['bc-index', 'bc-feed', 'tos-ofa71a-diff', 'fd320-diff'];
+// v1.8.11 (2026-10-23): built-in FD-500 Overton (3), Fauter (4) and TOS FO-10 (7) removed. Gary has his own
+// "Overton FD-500" and "TOS FO-10" (both with index) as custom machines in Supabase, which are kept.
+// differential() / DIFF_TRAIN above are no longer used by any built-in; kept as reference for the original math.
+export const REMOVED_BUILTIN_IDS = ['bc-index', 'bc-feed', 'tos-ofa71a-diff', 'fd320-diff', 'fd500-diff', 'fauter-diff', 'tos-fo10-diff'];
 
 export const BUILTIN_MACHINES = [
-  differential('fd500-diff', '3', 'FD-500 Overton', '6', 'Machine constant 6 (FD-500)', 'O * SIN(C) / D / K', '(O / M) * SIN(C) * D / K'),
-  differential('fauter-diff', '4', 'Fauter', '11.9367', 'Machine constant 11.9367 (Fauter)', 'O * SIN(C) / D / K', '(O / M) * SIN(C) * D / K'),
-  differential('tos-fo10-diff', '7', 'TOS FO-10', '11.9367', 'Machine constant 11.9367 (the original jumps into the Fauter routine, so FO-10 uses the Fauter constant)', 'O * SIN(C) / D / K', '(O / M) * SIN(C) * D / K',
-    'In the original the FO-10 routine jumps into the Fauter code (GOTO 4200/4220), so it gives exactly the Fauter result. Please confirm 11.9367 is right for the FO-10.',
-    // v1.4: index change gears (Gary: base index formula 24/z). Not in the original BASIC.
-    {
-      inputs: [{ name: 'Z', label: 'Number of teeth in gear (z)', unit: 'teeth', example: '40', basic: '(new in v1.4 - used by the index calculation)' }],
-      formulas: [{ name: 'RIDX', expr: '24 * K / Z', label: 'Index ratio = 24 × hob starts ÷ z' }],
-      outputs: [{ name: 'RIDX', label: 'Index ratio = 24 × hob starts ÷ z', format: 'basic' }],
-      trains: [{ kind: 'index', label: 'Index change gears (A/B x C/D) - Index ratio = 24 × hob starts ÷ z', ratio: 'RIDX', strategy: 'ranked', inventory: 'legacy-20-88', gears: 4, maxResults: 20 }],
-    }),
   {
     id: 'hob-rpm-time', menu: '9', name: 'Hob RPM & cutting time', builtin: true, numeric: 'gwbasic',
     description: 'Hob RPM from surface feet, and cutting time per cut, per part and for the whole job. Original menu option (9).',

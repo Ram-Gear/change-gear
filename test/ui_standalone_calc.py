@@ -7,11 +7,12 @@ import os, sys as _s; _s.path.insert(0, os.path.dirname(os.path.abspath(__file__
 here = os.path.dirname(os.path.abspath(__file__))
 URL = sys.argv[1] if len(sys.argv) > 1 else 'file://' + os.path.join(here, '..', 'ramgear-standalone.html')
 EX = {
-  'fd500-diff': {'B': '30', 'D': '8', 'K': '1'}, 'fauter-diff': {'B': '22.5', 'D': '3', 'K': '1', 'Q': '1'},
-  'tos-fo10-diff': {'B': '30', 'D': '8', 'K': '1', 'Q': '1', 'Z': '40'},
+  'FO10': {'B': '30', 'D': '8', 'K': '1', 'Q': '1', 'Z': '40'},
   'hob-rpm-time': {'DA': '3', 'HELIX': '20', 'SF': '100', 'NT': '40', 'SN': '1', 'FEED': '.08', 'LC': '2', 'NC': '1', 'NP': '10', 'SETUP': '60'},
 }
 fails, errors = [], []
+def go(pg, h):  # v1.8.11: same-document hash change, so an added machine (kept in memory on file://) survives
+    pg.evaluate('h => { location.hash = h; }', h); pg.wait_for_timeout(300)
 def ratio_shown(pg):
     pg.wait_for_selector('.results-table td.big', timeout=10000)
     vals = [v.strip() for v in pg.locator('.results-table td.big').all_inner_texts()]
@@ -20,8 +21,10 @@ with sync_playwright() as p:
     b = p.chromium.launch(); pg = b.new_page(viewport={'width': 1366, 'height': 657}); cgmock.install(pg)
     pg.on('pageerror', lambda e: errors.append(str(e)))
     pg.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
+    pg.goto(URL); pg.wait_for_selector('#user-box')
+    FO = cgmock.add_fo10(pg, URL); EX = {(FO if k == 'FO10' else k): v for k, v in EX.items()}  # v1.8.11: built-in FO-10 removed
     for mid, vals in EX.items():
-        pg.goto(URL + '#/m/' + mid); pg.reload(); pg.wait_for_selector('form.grid-form')
+        (go(pg, '#/m/' + mid) if mid == FO else (pg.goto(URL + '#/m/' + mid), pg.reload())); pg.wait_for_selector('form.grid-form')  # added machine is not kept over a reload on file://
         # blank form: visible error in view, fields flagged
         for k in vals:
             el = pg.locator('#in-' + k)
@@ -38,15 +41,16 @@ with sync_playwright() as p:
         r = ratio_shown(pg); print(mid, r)
         if not r: fails.append(f'{mid}: no ratio')
         # example-fill button also gives a ratio
-        pg.goto(URL + '#/m/' + mid); pg.wait_for_selector('form.grid-form')
+        go(pg, '#/m/' + mid); pg.wait_for_selector('form.grid-form')
         for k in vals:
             el = pg.locator('#in-' + k)
             if el.evaluate('e => e.tagName') == 'INPUT': el.fill('')
         pg.click('button:has-text("Fill blanks")'); pg.click('button:has-text("Calculate")')
         if not ratio_shown(pg): fails.append(f'{mid}: no ratio after Fill blanks')
     # v1.4: FO-10 index train (24 x starts / z) with ranked gear matches, 4- and 2-gear
-    for (k_, z_, want) in (('1', '40', '.6'), ('2', '48', '1')):
-        pg.goto(URL + '#/m/tos-fo10-diff'); pg.wait_for_selector('form.grid-form')
+    FO = cgmock.add_fo10(pg, URL, 'TOS FO-10 b')  # again: the reload above dropped the in-memory one
+    for (k_, z_, want) in (('1', '40', '0.600000'), ('2', '48', '1.000000')):  # added machine shows 6 decimals
+        go(pg, '#/m/' + FO); pg.wait_for_selector('form.grid-form')
         for k, v in {'B': '30', 'D': '8', 'K': k_, 'Q': '1', 'Z': z_}.items():
             el = pg.locator('#in-' + k)
             if el.evaluate('e => e.tagName') == 'SELECT': el.select_option(v)
@@ -55,14 +59,12 @@ with sync_playwright() as p:
         if not vals or want not in vals: fails.append(f'fo10 index z={z_} K={k_}: expected {want} in {vals}')
         card = pg.locator('.card', has=pg.locator('h3:has-text("Index change gears")'))
         txt = ' '.join(card.inner_text().split())
-        if 'Ratio needed: ' + want + ' ' not in txt: fails.append(f'fo10 index card ratio wrong (z={z_}): {txt[:200]}')
+        if 'Ratio needed: ' + {'0.600000': '.6', '1.000000': '1'}[want] + ' ' not in txt: fails.append(f'fo10 index card ratio wrong (z={z_}): {txt[:200]}')
         if card.locator('tbody tr').count() == 0: fails.append(f'fo10 index: no gear matches (z={z_})')
-        if card.locator('select').nth(1).input_value() != 'legacy-20-88': fails.append('fo10 index: default gears not all 20-88 (v1.8.5)')
         card.locator('select').nth(2).select_option('2'); pg.wait_for_timeout(200)
         card = pg.locator('.card', has=pg.locator('h3:has-text("Index change gears")'))
         if card.locator('tbody tr').count() == 0: fails.append(f'fo10 index: no 2-gear matches (z={z_})')
         card.locator('select').nth(2).select_option('4')
-    if 'Index ratio = 24 × hob starts ÷ z' not in pg.content(): fails.append('index formula label missing')
     pg.goto(URL + '#/new'); pg.wait_for_selector('.msg.ok')
     pg.click('button:has-text("Save machine")'); pg.wait_for_selector('form.grid-form')
     for k, v in {'Z': '40', 'K': '1', 'B': '20', 'D': '3'}.items(): pg.fill('#in-' + k, v)
@@ -74,7 +76,7 @@ with sync_playwright() as p:
     ctx = b.new_context(viewport={'width': 1366, 'height': 657})
     ctx.add_init_script("Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Access is denied for this document.','SecurityError')}})")
     pg2 = ctx.new_page(); cgmock.install(pg2)
-    for mid, vals in EX.items():
+    for mid, vals in [(k, v) for k, v in EX.items() if not k.startswith('custom-')]:  # the added FO-10 lives in the (blocked) mock store
         pg2.goto(URL + '#/m/' + mid); pg2.wait_for_selector('form.grid-form')
         for k, val in vals.items():
             el = pg2.locator('#in-' + k)

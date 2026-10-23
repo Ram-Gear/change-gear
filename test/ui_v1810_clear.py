@@ -14,7 +14,7 @@ with sync_playwright() as p:
     pg.goto(URL + '#/new'); pg.wait_for_selector('#simple-index'); pg.fill('#machine-name', 'Lees Bradner'); pg.click('button:has-text("Save machine")'); pg.wait_for_selector('#verify-lock')
     items = pg.evaluate(NAV) + [['Hob RPM & cutting time', '#/m/hob-rpm-time']]; print('PAGES', items)
     check(pg.locator('nav a[href="#/m/hob-rpm-time"]').count() == 1, 'Hob RPM listed under Tools')
-    check(len(items) == 5 and any('Hob' in n for n, _ in items), 'four machines + Hob RPM found')
+    check(len(items) == 2 and any('Hob' in n for n, _ in items), 'added machine + Hob RPM found (v1.8.11: FD-500/Fauter/FO-10 built-ins removed)')
     shot = False
     for n, href in items:
         pg.goto(URL + href); pg.wait_for_selector('#job-clear')

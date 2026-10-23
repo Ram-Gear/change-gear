@@ -11,3 +11,11 @@ def install(target, user='gary', buckets=None, unfold=True):
     if unfold: target.add_init_script("try { if (localStorage.getItem('ramgear.cg.headFolded') === null) localStorage.setItem('ramgear.cg.headFolded', '0'); } catch (e) {}")
     sess = json.dumps({'username': user}) if user else 'undefined'
     target.add_init_script(f"globalThis.__CG_SUPABASE_MOCK__ = makeCgMock({{ users: {json.dumps(USERS)}, persistKey: 'cgmock.db', session: {sess}" + (f", storageBuckets: {json.dumps(buckets)}" if buckets is not None else '') + " });")
+
+def add_fo10(pg, url, name='TOS FO-10'):
+    """v1.8.11: the built-in TOS FO-10 is gone; Gary's own FO-10 is an added machine. The Add-a-machine
+    template defaults (index 24 x K / Z, differential constant 11.9367 = Fauter math) are exactly the FO-10
+    math, so tests that used #/m/tos-fo10-diff add one like it (signed in as admin) and use its id."""
+    pg.goto(url + '#/new'); pg.wait_for_selector('#simple-index')
+    pg.fill('#machine-name', name); pg.click('button:has-text("Save machine")'); pg.wait_for_selector('form.grid-form')
+    return pg.url.split('#/m/')[1]

@@ -1,3 +1,4 @@
+import { FO10 } from './fixtures/machines_v1.8.11-fo10.mjs'; // removed built-in TOS FO-10 (v1.8.11), for its math
 // v1.8.4 reroll: next batches of distinct trains, same ranking order, first batch unchanged.
 import assert from 'node:assert/strict';
 const calc = await import('../js/calc.js');
@@ -22,7 +23,7 @@ for (const [target, gears, n, tol, label] of [[0.74604375, inv, 4, undefined, 'd
   console.log(`${label}: ${all.length} distinct trains in ${rounds + 1} batch(es)${rounds >= 60 ? ' (stopped after 60)' : ''}`);
 }
 // runTrain with opts.shown (what the app calls)
-const m = calc.BUILTIN_MACHINES.find((x) => x.id === 'tos-fo10-diff');
+const m = FO10;
 const res = calc.evaluateMachine(m, { B: '30', D: '8', K: '1', Q: '1', Z: '40' });
 for (const t of m.trains.filter((x) => x.strategy === 'ranked')) {
   const tr = { ...t, strategy: 'ranked' };

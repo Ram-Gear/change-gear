@@ -263,14 +263,19 @@ export async function getManualFile(id, name) {
   if (local.manualsAvailable()) await local.putManual(id, blob, ri.name).catch(() => {});
   return { id, name: ri.name, size: blob.size, type: blob.type, blob, shared: true };
 }
+// v1.8.11: bucket cg-manuals file_size_limit = 50 MB
+export const MANUAL_MAX_BYTES = 52428800;
+export const tooBigText = (name, bytes) => `${name} is ${(bytes / 1048576).toFixed(1)} MB, and the shared storage limit is 50 MB per file. Compress the PDF or split it, then try again.`;
 // Add a manual (a file with the same name is replaced; other manuals are kept).
 export async function putManual(id, blob, name) {
   if (await probeManuals() === 'shared') {
+    if (blob.size > MANUAL_MAX_BYTES) throw new Error(tooBigText(name, blob.size));
     const path = `${folder(id)}/${safeName(name)}`;
-    // v1.8.10: admins replace a same-name file (upsert); other users only add new files (no overwrite).
+    // Admins replace a same-name file (upsert; the update policy exists again since 2026-10-23). Only admins upload.
     const up = await getClient().storage.from(MANUAL_BUCKET).upload(path, blob, { upsert: auth.canEdit === true, contentType: blob.type || 'application/pdf' });
     if (up.error) {
       const t = String(up.error.message || up.error);
+      if (/413|too large|exceeded the maximum|payload too large/i.test(t + ' ' + (up.error.statusCode || up.error.status || ''))) throw new Error(tooBigText(name, blob.size));
       if (!auth.canEdit && /exist|duplicate|409/i.test(t + (up.error.statusCode || ''))) throw new Error(`a manual named "${safeName(name)}" is already attached - rename the file, or ask an admin to replace it`);
       throw up.error;
     }

@@ -553,3 +553,33 @@ that for the differential and applies zero error to index trains only (e.g. FO-1
 - Proposed cg-manuals SQL in app/MANUALS-STORAGE.md (insert = cg_can_view, update policy dropped, delete = cg_can_edit). NOT applied - needs Gary's OK. Until then a viewer upload is refused by Storage and the panel shows the error.
 - Job details card: teal "Clear" button upper right of the header - inputs back to empty/defaults, results cleared, saved last entries deleted (stay cleared after reload). Machines + Hob RPM.
 - Tests: test/ui_v1810_manuals.py (mock policy 'current' and 'v1810' via localStorage cgmock.manualPolicy), test/ui_v1810_clear.py (screenshot /workspace/v1810_clear.png); ui_auth updated (viewer now has attach).
+
+## v1.8.11 (2026-10-23, dev only, not published)
+- Gary's rule: remove the original built-ins with NO index side, keep anything with an index. Removed built-in
+  **FD-500 Overton** (`fd500-diff`) and **Fauter** (`fauter-diff`), both differential-only; added to REMOVED_BUILTIN_IDS
+  (old links show "removed from this app"; saved overrides ignored, never written back). Kept built-in **TOS FO-10**
+  (has index; still uses the Fauter constant 11.9367 via the shared `differential()` builder) and **Hob RPM**.
+  Ranking, GW-BASIC MBF code, legacy-20-88 / FO-10 gear lists kept.
+- Supabase read-only check (admin, 2026-10-23): active custom cg_machines = Lees Bradner, TOS FO-10 (custom),
+  Overton FD-500 (custom); each has indexing + differential cg_gear_sets and 2 cg_presets. No built-in override rows
+  (no formulas.builtin), so no data belongs to the removed built-ins. Nothing changed in Supabase.
+- Manuals: admin-only upload (Gary's choice; live policies insert/update/delete = cg_can_edit(), applied Oct 23 by the
+  DB owner - not touched here). Attach / Upload to shared storage only for admins; viewers see list + Open + "Only an
+  admin can add manuals." Admin same-name replace = upsert. 50 MB (52428800 B) pre-check, no upload attempted; server
+  413/"too large" mapped to the same message. help.html + MANUALS-STORAGE.md updated.
+- Tests: basic_compare now modules 7 (tos-fo10) + 9 (hob-rpm-time) only, 0 mismatches; FD-500/Fauter compare dropped
+  (FD-500 PC-BASIC reference search check runs on the v1.2 fixture def). Fauter-based tests switched to tos-fo10-diff
+  (same math, needs Z). Counts in ui_v187/ui_v188/ui_v1810_clear updated. ui_v1810_manuals.py removed (viewer upload
+  superseded). New ui_v1811.py (/workspace/v1811_menu.png), ui_v1811_manual.py (/workspace/v1811_manual.png);
+  mock: localStorage cgmock.force413.
+- Follow-up (Gary, owner voice call 2026-10-23): built-in **TOS FO-10** (`tos-fo10-diff`) removed too; added to
+  REMOVED_BUILTIN_IDS (old links show "removed from this app", saved overrides dropped, never written back). Built-ins
+  left: only **Hob RPM & cutting time** (Tools). My Machines = Gary's own Supabase machines only (Overton FD-500,
+  Lees Bradner, TOS FO-10 `custom-z7dft19`). `differential()` / DIFF_TRAIN kept in machines.js (unused, reference).
+  Supabase data and policies not touched.
+- Tests: basic_compare = hob-rpm-time only (38 cases, 0 mismatches); tos-fo10 compare dropped. FO-10 math tests use the
+  frozen definition test/fixtures/machines_v1.8.11-fo10.mjs (engine, simple_csv, reroll, fullset; store_cloud adds it
+  to its built-in list to keep the override mapping covered). legacy_search and ieee_vs_gw run on the v1.2 fixture
+  defs (legacy_search back to 76 ratios / 228 matches, 0 mismatches). UI tests use an added FO-10
+  (cgmock.add_fo10: Add-a-machine defaults 24 x K / Z and 11.9367 = FO-10 math) instead of #/m/tos-fo10-diff.
+  help.html no longer lists FD-500/Fauter/FO-10 as built-in routines. ramgear-standalone.html rebuilt (was v1.8.9).

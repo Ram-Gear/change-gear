@@ -5,7 +5,7 @@
 //
 //   node test/basic_compare.mjs            use cached transcripts (test/fixtures/transcripts)
 //   node test/basic_compare.mjs --live     re-run PC-BASIC for every case (slow: gear searches)
-//   options: --jobs=6  --only=fd500  --pcbasic=/path/to/pcbasic
+//   options: --jobs=6  --only=hob-rpm  --pcbasic=/path/to/pcbasic
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -32,7 +32,7 @@ const rdec = (a, b, d) => (a + rnd() * (b - a)).toFixed(d).replace(/^0\./, '.');
 // ---------------------------------------------------------------- expected output via JS
 // all menus of the original, used only to keep the case generator's RNG sequence unchanged
 const ALL_MODULES = { 1: 'bc-index', 2: 'bc-feed', 3: 'fd500-diff', 4: 'fauter-diff', 5: 'tos-ofa71a-diff', 6: 'fd320-diff', 7: 'tos-fo10-diff', 9: 'hob-rpm-time' };
-const MODULE = { 3: 'fd500-diff', 4: 'fauter-diff', 7: 'tos-fo10-diff', 9: 'hob-rpm-time' };
+const MODULE = { 9: 'hob-rpm-time' };
 
 function warnLines(res) { return res.warnings.map((w) => w.replace(/ while working out .*$/, '')); }
 

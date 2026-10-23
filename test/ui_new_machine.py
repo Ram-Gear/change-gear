@@ -69,13 +69,14 @@ with sync_playwright() as p:
     pg.fill('#machine-name', 'Hobber Two'); pg.click('button:has-text("Save machine")'); pg.wait_for_selector('form.grid-form')
     st = pg.evaluate("window.__rgData()")
     check(sorted(i['name'] for i in st['inventories']) == ['Hobber Two differential gears', 'Hobber Two index gears'], 'lists renamed')
-    # copy of Fauter: add index simply
-    pg.goto(URL + '#/copy/fauter-diff'); pg.wait_for_selector('#simple-index')
-    check(pg.locator('#const-differential').input_value() == '11.9367', 'Fauter copy shows differential constant')
-    pg.click('button:has-text("+ Add index ratio")'); pg.wait_for_selector('#const-index')
+    # copy of an FO-10 (Fauter math, with index). v1.8.11: the built-in FO-10 is gone, so copy an added one
+    fo = cgmock.add_fo10(pg, URL)
+    pg.goto(URL + '#/copy/' + fo); pg.wait_for_selector('#simple-index')
+    check(pg.locator('#const-differential').input_value() == '11.9367', 'FO-10 copy shows differential constant')
+    pg.wait_for_selector('#const-index')  # copy of FO-10 (Fauter math) already has its index
     pg.wait_for_selector('.msg.ok:has-text("Formulas check out")')
     pg.click('button:has-text("Save machine")'); pg.wait_for_selector('form.grid-form')
-    check(pg.locator('#in-Z').count() == 1, 'Fauter copy got teeth box')
+    check(pg.locator('#in-Z').count() == 1, 'FO-10 copy got teeth box')
     # delete -> also deletes lists (dialogs accepted)
     pg.goto(URL + '#/edit/' + m['id']); pg.wait_for_selector('button:has-text("Delete machine")')
     pg.click('button:has-text("Delete machine")'); pg.wait_for_timeout(300)
