@@ -583,3 +583,23 @@ that for the differential and applies zero error to index trains only (e.g. FO-1
   defs (legacy_search back to 76 ratios / 228 matches, 0 mismatches). UI tests use an added FO-10
   (cgmock.add_fo10: Add-a-machine defaults 24 x K / Z and 11.9367 = FO-10 math) instead of #/m/tos-fo10-diff.
   help.html no longer lists FD-500/Fauter/FO-10 as built-in routines. ramgear-standalone.html rebuilt (was v1.8.9).
+
+## v1.8.12 (2026-11-17, dev only, not published - waiting for Gary's OK)
+- **Index presets get reversing gears E/F** (Gary): a selector with three fixed pairs, shown as `56/28 (2:1)`,
+  `42/42 (1:1)`, `28/56 (1:2)`. Train = A/B × C/D × E/F. Missing E/F = 42/42 (1:1, the v1.8.11 behaviour), no review flag.
+  - FD-500 manual (FD500S.pdf, PAGE 25 / 3.2.2 and PAGE 62 / 4.5, table IV.7 p.63-64): a/b × c/d = 24·u·k/z with
+    u = f/e, i.e. a/b × c/d × e/f = 24k/z. Manual pairs: 56/28 (z 8-16), 42/42 (17-40), 28/56 (41-80), 21/63 (81+,
+    table mixes 28/56 and 21/63 above 81). Gary chose the three pairs 56/28, 42/42, 28/56 only, no automatic switching.
+  - Stored in `cg_presets.result.E` / `.F` (JSON, like result.name) - no schema / policy change. Untouched old rows
+    keep no E/F keys (saving the editor does not rewrite them).
+  - UI: E/F column (selector) in the Index gear presets editor rows (+ Add preset defaults 42/42); viewer table has
+    E and F columns. "E/F for saved preset" selector above the index search results (default 42/42), used by the
+    row "Save as preset" buttons and "Save selected match as preset". Load preset bar: E/F selector after D; train
+    text `A/B × C/D × E/F`; clicking a search match keeps the bar's E/F. Preset results table: A B C D E F.
+  - Ratio, error, Exact / Not exact, dropdown "⚠ not exact" all use A·C·E / (B·D·F) (whole-number check).
+  - CSV export `z,A,B,C,D,E,F,note,name`; import accepts new and old `z,A,B,C,D,note,name` (header or header-less;
+    header-less = new layout when columns 6 and 7 are whole numbers). Bad pair (e.g. 21/63) -> row skipped.
+  - Index gear search unchanged (A/B × C/D, 1:1).
+- Tests: presets.test.mjs (+6 E/F tests), ui_v1812_ef.py (new; screenshots /workspace/v1812_editor.png,
+  v1812_results.png, v1812_saveas.png, v1812_presets.png), ui_presets_manual (results columns), version checks.
+- Preview: /workspace/v1812-preview.html (standalone, fake in-browser DB with sample data, never talks to Supabase).

@@ -24,7 +24,7 @@ with sync_playwright() as p:
     pg.on('dialog', lambda d: d.accept())
     pg.goto(URL); pg.evaluate('localStorage.clear()'); pg.evaluate("new Promise(r => { const q = indexedDB.deleteDatabase('ramgear-change-gear'); q.onsuccess = q.onerror = q.onblocked = () => r(); })")
     pg.goto(URL + '#/'); pg.reload()
-    check('v1.8.11' in pg.locator('#app-version').inner_text(), 'version v1.8.11')
+    check('v1.8.12' in pg.locator('#app-version').inner_text(), 'version v1.8.12')
     # --- presets on an added FO-10 (stored on the machine)
     FO = cgmock.add_fo10(pg, URL)
     fo10(pg, 101)
@@ -39,7 +39,7 @@ with sync_playwright() as p:
     pg.wait_for_selector(IDX + ' tr.preset-row')
     pr = pg.locator(IDX + ' tr.preset-row').first.locator('td').all_inner_texts()
     out['presetRow101'] = pr
-    check(pr[0] == 'Preset' and pr[1] == '24' and pr[2] == '101' and pr[5] == '0.23762376' and pr[6].startswith('0 (exact)'), 'preset 24/101 shown first with ratio and 0 error')
+    check(pr[0] == 'Preset' and pr[1] == '24' and pr[2] == '101' and pr[5] == '42' and pr[6] == '42' and pr[7] == '0.23762376' and pr[8].startswith('0 (exact)'), 'preset 24/101 shown first with E/F 42/42 (v1.8.12), ratio and 0 error')
     check(pg.locator('.prime-hint').count() == 0, 'hint gone once preset exists')
     first_table = pg.locator(IDX + ' table').first
     check(first_table.evaluate("t => t.classList.contains('preset-results')"), 'preset table comes before search results')

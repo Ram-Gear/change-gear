@@ -175,3 +175,7 @@ a { color:var(--accent); }
 .job-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .job-head h3 { margin: 0; }
 #job-clear { margin-left: auto; }
+
+/* v1.8.12 reversing gears E/F selector */
+select.ef-select { width:auto; display:inline-block; min-width:118px; }
+.save-ef-row { margin:6px 0; align-items:center; gap:8px; }

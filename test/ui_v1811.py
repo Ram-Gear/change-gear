@@ -29,7 +29,7 @@ with sync_playwright() as p:
     check('ratio' in pg.inner_text('main').lower(), 'added TOS FO-10 calculates')
     pg.goto(URL + '#/m/hob-rpm-time'); pg.wait_for_selector('form.grid-form'); pg.click('button:has-text("Fill blanks with example values")'); pg.click('button:has-text("Calculate")'); pg.wait_for_timeout(1500)
     t = pg.inner_text('main'); check('RPM' in t, 'Hob RPM calculates'); print('HOB', ' | '.join(l for l in t.splitlines() if 'RPM' in l)[:300])
-    check('v1.8.11' in pg.inner_text('#app-version'), 'version v1.8.11')
+    check('v1.8.12' in pg.inner_text('#app-version'), 'version v1.8.12 (v1.8.11 menu checks)')
     pg.goto(URL + '#/'); pg.wait_for_timeout(500); pg.screenshot(path='/workspace/v1811_menu.png')
     check(not errors, f'no console/page errors {errors}')
     b.close()
