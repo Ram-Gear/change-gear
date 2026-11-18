@@ -3,16 +3,37 @@
 // v1.8.12: E/F = the machine's reversing gears (FD-500 manual 3.2.2 / 4.5: a/b x c/d = 24 u k / z, u = f/e),
 // one of three fixed pairs 56/28 (2:1), 42/42 (1:1), 28/56 (1:2). Missing E/F = 42/42 (1:1, the old behaviour).
 // Train ratio = A/B x C/D x E/F.
+// v1.8.13: E/F hidden on machines without reversing gears (machineHasEF: only Lees Bradner for now). Every function below takes an optional
+// hasEF flag (default true = v1.8.12 behaviour). With hasEF = false, E/F is treated as 1:1: stored E/F is ignored
+// for ratio / exact check / train text ("A/B × C/D"), CSV export has no E,F columns (the old z,A,B,C,D,note,name
+// layout) and CSV import ignores any E,F columns.
 
 export const EF_PAIRS = [[56, 28], [42, 42], [28, 56]];
 export const EF_DEFAULT = [42, 42];
+// v1.8.13 (Gary, 2026-11-18): E/F stays ON by default (FD-500, TOS FO-10, every other machine = v1.8.12).
+// It is hidden ONLY for Lees Bradner, whose index is a plain 4-gear train A/B x C/D (7.5 x K / Z), no reversing gears.
+export const LEES_ID = 'custom-tiblpjl';
+const LEES_NAME = /\blees\b/i;
+// Does this machine have E/F reversing gears in its index train?
+//  1. explicit flag in the machine definition (= cg_machines.formulas.def): noEF: true -> no E/F; hasEF: true/false wins
+//     over everything (for future machines);
+//  2. fallback for the LOCKED original Lees Bradner (its def cannot be edited): id custom-tiblpjl, or a name matching
+//     /\blees\b/i (the original, "Lees Bradner (fixed draft)" and any other Lees copy);
+//  3. everything else: E/F shown (unchanged v1.8.12 behaviour).
+export function machineHasEF(m) {
+  if (!m) return true;
+  if (typeof m.hasEF === 'boolean') return m.hasEF;
+  if (m.noEF === true) return false;
+  if (m.id === LEES_ID || LEES_NAME.test(String(m.name || ''))) return false;
+  return true;
+}
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 export function efLabel(E, F) { const g = gcd(E, F); return `${E}/${F} (${E / g}:${F / g})`; }
-export function efOf(p) { return p && p.E && p.F ? { E: Number(p.E), F: Number(p.F) } : { E: EF_DEFAULT[0], F: EF_DEFAULT[1] }; }
+export function efOf(p, hasEF = true) { return hasEF && p && p.E && p.F ? { E: Number(p.E), F: Number(p.F) } : { E: EF_DEFAULT[0], F: EF_DEFAULT[1] }; }
 export function isEfPair(E, F) { return EF_PAIRS.some(([e, f]) => e === Number(E) && f === Number(F)); }
 // whole-number numerator / denominator of A/B x C/D x E/F
-export function presetNumDen(p) {
-  const { E, F } = efOf(p);
+export function presetNumDen(p, hasEF = true) {
+  const { E, F } = efOf(p, hasEF);
   const n = Number(p.A) * (p.C ? Number(p.C) : 1) * E, d = Number(p.B) * (p.D ? Number(p.D) : 1) * F;
   return { num: n, den: d };
 }
@@ -28,7 +49,9 @@ const posInt = (v) => /^\d+$/.test(String(v ?? '').trim()) && Number(v) > 0;
 const blank = (v) => v === undefined || v === null || String(v).trim() === '';
 
 // Normalise + validate one preset. Returns { preset, errors }
-export function cleanPreset(p) {
+// hasEF = false: E/F is not part of the preset; a valid stored pair is carried along untouched (not used, not
+// shown), anything else in E/F is dropped without an error.
+export function cleanPreset(p, hasEF = true) {
   const errors = [];
   const out = { z: Number(p.z), A: Number(p.A), B: Number(p.B), note: String(p.note || '').trim() };
   if (String(p.label || '').trim()) out.label = String(p.label).trim();
@@ -38,20 +61,21 @@ export function cleanPreset(p) {
   if (blank(p.C) && blank(p.D)) { /* 2-gear set */ }
   else if (!posInt(p.C) || !posInt(p.D)) errors.push('C and D must both be whole numbers (or both empty for a 2-gear set)');
   else { out.C = Number(p.C); out.D = Number(p.D); }
-  if (blank(p.E) && blank(p.F)) { /* no E/F stored = 42/42 */ }
+  if (!hasEF) { if (!blank(p.E) && !blank(p.F) && posInt(p.E) && posInt(p.F) && isEfPair(p.E, p.F)) { out.E = Number(p.E); out.F = Number(p.F); } }
+  else if (blank(p.E) && blank(p.F)) { /* no E/F stored = 42/42 */ }
   else if (!posInt(p.E) || !posInt(p.F) || !isEfPair(p.E, p.F)) errors.push(`E/F must be ${EF_PAIRS.map(([e, f]) => `${e}/${f}`).join(', ').replace(/, ([^,]*)$/, ' or $1')} (or both empty for 42/42)`);
   else { out.E = Number(p.E); out.F = Number(p.F); }
   return { preset: out, errors };
 }
 
-export function presetRatio(p) {
-  const { E, F } = efOf(p);
+export function presetRatio(p, hasEF = true) {
+  const { E, F } = efOf(p, hasEF);
   const r = Number(p.A) / Number(p.B);
   return (p.C && p.D ? r * (Number(p.C) / Number(p.D)) : r) * (E / F);
 }
-export function presetError(p, target) { return presetRatio(p) / target - 1; }
+export function presetError(p, target, hasEF = true) { return presetRatio(p, hasEF) / target - 1; }
 export function presetsFor(presets, z) { return (presets || []).filter((p) => Number(p.z) === Number(z)); }
-export function presetText(p) { const { E, F } = efOf(p); return `${p.A}/${p.B}${p.C ? ` × ${p.C}/${p.D}` : ''} × ${E}/${F}`; }
+export function presetText(p, hasEF = true) { const { E, F } = efOf(p, hasEF); return `${p.A}/${p.B}${p.C ? ` × ${p.C}/${p.D}` : ''}${hasEF ? ` × ${E}/${F}` : ''}`; }
 
 // Hint for a prime z with no preset and no inventory gear whose tooth count is a multiple of z.
 export function primeHint(z, inventoryGears, presets) {
@@ -63,10 +87,12 @@ export function primeHint(z, inventoryGears, presets) {
 
 // From a ranked search match {A,B,C,D}
 // v1.8.12: ef = [E, F] (one of EF_PAIRS); default 42/42
-export function presetFromMatch(z, m, note = '', label = '', ef = null) {
+// hasEF = false: no E/F keys on the preset (machine without reversing gears)
+export function presetFromMatch(z, m, note = '', label = '', ef = null, hasEF = true) {
   const p = { z: Number(z), A: m.A, B: m.B, note };
   if (String(label || '').trim()) p.label = String(label).trim();
   if (m.C && m.D) { p.C = m.C; p.D = m.D; }
+  if (!hasEF) return p;
   const [E, F] = ef || (m.E && m.F ? [m.E, m.F] : EF_DEFAULT);
   if (!isEfPair(E, F)) throw new Error(`E/F ${E}/${F} is not one of the allowed pairs`);
   p.E = Number(E); p.F = Number(F);
@@ -74,16 +100,18 @@ export function presetFromMatch(z, m, note = '', label = '', ef = null) {
 }
 
 // Add or replace (same z and same gears -> replace note; otherwise append). Sorted by z.
-export function upsertPreset(presets, p) {
+export function upsertPreset(presets, p, hasEF = true) {
   const list = [...(presets || [])];
-  const k = list.findIndex((x) => Number(x.z) === p.z && presetText(x) === presetText(p));
+  const k = list.findIndex((x) => Number(x.z) === p.z && presetText(x, hasEF) === presetText(p, hasEF));
   if (k >= 0) list[k] = p; else list.push(p);
   return list.sort((a, b) => a.z - b.z);
 }
 
 // ---------------------------------------------------------------- CSV: z,A,B,C,D,E,F,note,name (v1.8.12; old z,A,B,C,D,note,name still imports, E/F = 42/42)
 const q = (s) => (/[",;\n]/.test(s) ? `"${String(s).replace(/"/g, '""')}"` : String(s));
-export function presetsToCsv(presets) {
+// hasEF = false: the old layout z,A,B,C,D,note,name (no E/F columns)
+export function presetsToCsv(presets, hasEF = true) {
+  if (!hasEF) return ['z,A,B,C,D,note,name', ...(presets || []).map((p) => [p.z, p.A, p.B, p.C ?? '', p.D ?? '', q(p.note || ''), q(p.label || '')].join(','))].join('\r\n') + '\r\n';
   return ['z,A,B,C,D,E,F,note,name', ...(presets || []).map((p) => { const { E, F } = efOf(p); return [p.z, p.A, p.B, p.C ?? '', p.D ?? '', E, F, q(p.note || ''), q(p.label || '')].join(','); })].join('\r\n') + '\r\n';
 }
 function splitLine(line, sep) {
@@ -96,7 +124,8 @@ function splitLine(line, sep) {
   out.push(cur); return out.map((s) => s.trim());
 }
 // Returns { rows: [preset+line], bad: [{line,text,reason}], header }
-export function parsePresetCsv(text) {
+// hasEF = false: E,F columns (if any) are read for the layout but ignored - rows come back without E/F.
+export function parsePresetCsv(text, hasEF = true) {
   const src = String(text || '').replace(/^\uFEFF/, '');
   const lines = src.split(/\r?\n/);
   const first = lines.find((l) => l.trim()) || '';
@@ -123,7 +152,7 @@ export function parsePresetCsv(text) {
     // no header: new layout when columns 6 and 7 are both whole numbers (E, F), else the old z,A,B,C,D,note,name
     const c = col || (/^\d+$/.test(cells[5] || '') && /^\d+$/.test(cells[6] || '') ? NEW : OLD);
     const get = (k) => (c[k] < 0 ? '' : cells[c[k]] ?? '');
-    const { preset, errors } = cleanPreset({ z: get('z'), A: get('A'), B: get('B'), C: get('C'), D: get('D'), E: get('E'), F: get('F'), note: get('note'), label: get('label') });
+    const { preset, errors } = cleanPreset({ z: get('z'), A: get('A'), B: get('B'), C: get('C'), D: get('D'), E: hasEF ? get('E') : '', F: hasEF ? get('F') : '', note: get('note'), label: get('label') }, hasEF);
     if (errors.length) bad.push({ line: i + 1, text: raw, reason: errors.join('; ') });
     else rows.push({ ...preset, line: i + 1 });
   });

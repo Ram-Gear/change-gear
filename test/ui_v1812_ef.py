@@ -35,7 +35,7 @@ with sync_playwright() as p:
     pg.on('pageerror', lambda e: errors.append(str(e))); pg.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
     pg.on('dialog', lambda d: d.accept(answers.pop(0)) if d.type == 'prompt' and answers else d.accept())
     pg.goto(URL); pg.evaluate('localStorage.clear()'); pg.reload(); pg.wait_for_selector('#user-box')
-    check('v1.8.12' in pg.inner_text('#app-version'), 'version v1.8.12')
+    check('v1.8.13' in pg.inner_text('#app-version'), 'version v1.8.13')
     mid = cgmock.add_fo10(pg, URL, NAME)  # Add-a-machine defaults: index ratio 24 x K / Z (FD-500 manual: a/b x c/d x e/f = 24 k / z)
     calc(pg, mid, 17)
     # --- editor: + Add preset has an E/F selector (default 42/42) with exactly the 3 pairs

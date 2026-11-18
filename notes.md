@@ -603,3 +603,64 @@ that for the differential and applies zero error to index trains only (e.g. FO-1
 - Tests: presets.test.mjs (+6 E/F tests), ui_v1812_ef.py (new; screenshots /workspace/v1812_editor.png,
   v1812_results.png, v1812_saveas.png, v1812_presets.png), ui_presets_manual (results columns), version checks.
 - Preview: /workspace/v1812-preview.html (standalone, fake in-browser DB with sample data, never talks to Supabase).
+
+## Lees Bradner differential diagnosis (2026-11-18, no code changed)
+- Lees Bradner is a custom Supabase machine (custom-tiblpjl, locked 2026-10-16), not in source.bas.
+- Stored RDIFF = `D * SIN(B*PI()/180) / (2*PI()*K) * ((1 - Q) + Q / 25.4)`.
+- Gary's case K=1, B=15, m=2.75, z=14, metric: stored gives 0.004460; expected 0.3804673425.
+- Expected = 25.4*sin(B)/(2*pi*m*K) exactly (12.7*sinB/(pi*m) = 0.38046734). Metric branch has m and 25.4 inverted (off by factor 85.31).
+- Inch branch DP*sinB/(2*pi*K) is consistent (DP = 25.4/m). Fix: `SIN(B*PI()/180) / (2*PI()*K) * ((1 - Q) * D + Q * 25.4 / D)`.
+- Machine is locked: fix needs Copy to new draft -> test -> Verify & lock (awaiting Gary).
+- Lees index (2026-11-18): Gary says Lees has NO E/F gears. Lees def index train = "A/B x C/D", RIDX = KIDX*K/Z, KIDX 7.5; source.bas has no Lees at all.
+  Bug: v1.8.12 E/F UI is unconditional (app.js efCell ~1299 preset table, saveEf ~558/618, results E/F cols ~569, preset bar ~701) so it shows on Lees and FO-10 too.
+  Fix plan (not done): per-machine flag (e.g. def.hasEF) true only for FD-500; hide E/F and treat as 1:1 elsewhere. Awaiting Gary.
+
+## 2026-11-18 - Lees Bradner fixed draft (Supabase) + v1.8.13 E/F hidden on Lees only (dev only, NOT published)
+Approved by Gary on an owner voice call (2026-11-18). Corrections in that call: E/F is removed ONLY on Lees Bradner
+(original + draft); TOS FO-10 and Overton FD-500 keep v1.8.12 E/F exactly; Lees must show zero E/F anywhere.
+
+### 1. "Lees Bradner (fixed draft)" - new UNLOCKED draft machine in Supabase
+- Made through the live app as admin (Playwright, /workspace/leesdraft/make_draft.py): "Copy to new draft" on
+  custom-tiblpjl, renamed, RDIFF edited in the editor, Save machine. Gear lists then replaced through the app's own
+  gear-list editor (CSV "Replace my list with these" + Save) with Lees' 64-gear lists (21-70, 73-84, 86, 97; qty 1).
+  Presets copied by the copy flow (z=13 30/80 x 80/52, z=18 45/54 x 40/80). No service-role key used; a request guard
+  aborted any write touching the Lees / FD-500 / FO-10 rows (none attempted).
+- Def id **custom-p3bks4m**, cg_machines row 203e9bd7-2c65-4486-8f4d-bcf9ea3dea09, NOT locked.
+  def.noEF = true added afterwards with the editor's "Advanced: edit as JSON" -> Apply JSON -> Save (flag_draft.py).
+- RDIFF before (locked original, unchanged): `D * SIN(B * PI() / 180) / (2 * PI() * K) * ((1 - Q) + Q / 25.4)`
+  RDIFF after (draft):                       `SIN(B * PI() / 180) / (2 * PI() * K) * ((1 - Q) * D + Q * 25.4 / D)`
+- Verified on the live site with the app's own Calculate (verify_draft.py, read-only):
+  metric K1 B15 m2.75 z14: draft 0.380467 (ratio needed .3804673426; theory 0.3804673425), original 0.004460.
+  inch K1 B15 DP10: draft 0.411923 = original 0.411923. inch K2 B30 DP8 z40: draft 0.318310 = original 0.318310.
+  Screenshot /workspace/lees_draft.png.
+- Known cosmetic leftover: the draft's two gear lists keep the note "Placeholder: every tooth count 20-88 ..." from
+  the copy flow (the list itself is Lees' 64 gears; the app has no UI to edit a list note).
+- Data check (read-only, 2026-11-18): original Lees row updated_at 2026-10-16 09:15:32 CDT (lock 09:15:31 CDT, by admin),
+  gear sets updated 2026-10-15 15:42 CDT, presets z=13 / z=18 updated 2026-10-16 09:14 / 09:19 CDT, no E/F keys.
+  Nothing on Lees changed on Nov 17 (v1.8.12) or today. FD-500 / FO-10 rows unchanged today (compared before/after).
+  updated_at is trigger-maintained (the draft's updated_at moved when it was saved again).
+
+### 2. FO-10 in source.bas (finding only - Gary said leave FO-10 E/F as is)
+- source.bas lines 25 / 43 (menu "(7) FO-10 TOS DIFFERNTIAL") and 7000-7390: FO-10 is differential only
+  (7050 O = 11.9367; 7150 R = (O / M) * SIN(C) * D / K inch; 7200 R = O * SIN(C) / D / K metric). No index train and no
+  E/F / reversing gears anywhere in the BASIC; the change-gear search 10010-10220 is 4 gears A/B x C/D only.
+
+### 3. v1.8.13 (dev) - E/F hidden on Lees Bradner only
+- Rule: presets.js `machineHasEF(m)` - explicit def.hasEF (boolean) wins; def.noEF === true -> no E/F; fallback for the
+  locked original: id custom-tiblpjl or name /\blees\b/i (covers "Lees Bradner (fixed draft)" too); everything else
+  -> E/F shown exactly as v1.8.12 (FD-500, TOS FO-10, new machines).
+- On Lees (hasEF false), same look as v1.8.11: no E/F column in the Index gear presets editor or the viewer table, no
+  "E/F for saved preset" picker, preset results table A B C D / "Train ratio" (no E, F), Load preset bar has no E/F
+  select, train text "A/B × C/D", no E/F wording in the help line / CSV hint. Ratio, error, Exact / Not exact and the
+  "⚠ not exact" list use E/F = 1:1 and ignore any stored E/F. Saving presets keeps a valid stored E/F pair untouched in
+  cg_presets.result (hidden, unused) rather than deleting it; new Lees presets get no E/F keys.
+- CSV on Lees: export without E/F columns (old layout z,A,B,C,D,note,name); import accepts both layouts and ignores E,F.
+- Also fixed: stray "null" printed under every differential result (body.append(..., null) in renderTrain).
+- Files: app/js/presets.js, app/js/app.js (version v1.8.13 2026-11-18), app/help.html, app/ramgear-standalone.html
+  (rebuilt), app/tools/make-preview.py (new), app/test/presets.test.mjs (+3), app/test/ui_v1813_ef_lees.py (new),
+  app/test/fixtures/v1813_seed.json (copy of the 4 live machines + gear sets + presets, no secrets), version checks in
+  ui_v1812_ef.py / ui_presets_manual.py / ui_v1811.py.
+- Preview: /workspace/v1813-preview.html (tools/make-preview.py; fake DB seeded with the 4 machines; CSP connect-src
+  'none'). Screens: /workspace/v1813_fd500.png, v1813_lees.png, v1813_lees_draft.png, v1813_fo10.png.
+- Live site still runs v1.8.12, so Gary still sees E/F on the Lees machines there until v1.8.13 is published (needs
+  Gary's own OK).

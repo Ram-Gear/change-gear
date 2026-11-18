@@ -24,7 +24,7 @@ with sync_playwright() as p:
     pg.on('dialog', lambda d: d.accept())
     pg.goto(URL); pg.evaluate('localStorage.clear()'); pg.evaluate("new Promise(r => { const q = indexedDB.deleteDatabase('ramgear-change-gear'); q.onsuccess = q.onerror = q.onblocked = () => r(); })")
     pg.goto(URL + '#/'); pg.reload()
-    check('v1.8.12' in pg.locator('#app-version').inner_text(), 'version v1.8.12')
+    check('v1.8.13' in pg.locator('#app-version').inner_text(), 'version v1.8.13')
     # --- presets on an added FO-10 (stored on the machine)
     FO = cgmock.add_fo10(pg, URL)
     fo10(pg, 101)

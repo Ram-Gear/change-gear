@@ -2,7 +2,7 @@
 import * as calc from './calc.js';
 
 import * as dataStore from './store.js';
-export const APP_VERSION = 'RAM-GEAR web v1.8.12 (2026-11-17)';
+export const APP_VERSION = 'RAM-GEAR web v1.8.13 (2026-11-18)';
 // Browser storage can be blocked (Edge/Chrome "block site data", some file:// policies, private
 // windows, full quota). Never let that stop a calculation: fall back to memory and say so.
 function showStorageBanner(problem) {
@@ -555,8 +555,15 @@ function renderTrain(m, res, i, trainState, onPresetsChanged) {
     const isIdx = t.kind === 'index';
     let searchSel = null;
     const z = isIdx ? zOf(res) : null;
+    const hasEF = P.machineHasEF(m); // v1.8.13: no E/F on Lees Bradner (see presets.js machineHasEF)
     const saveEf = efSelect(42, 42, { id: `save-ef-${i}`, class: 'ef-select save-ef' }); // v1.8.12: E/F for "Save as preset" from the results
     const askSave = (v) => {
+      if (!hasEF) {
+        const p0 = P.presetFromMatch(z, v, '', '', null, false);
+        const name = prompt(`Name for this preset (z = ${z}, ${P.presetText(p0, false)}).`, ''); if (name === null) return;
+        setPresets(m, P.upsertPreset(getPresets(m), P.presetFromMatch(z, v, '', name, null, false), false)); if (onPresetsChanged) onPresetsChanged();
+        return;
+      }
       const [E, F] = efFromSelect(saveEf);
       const p0 = P.presetFromMatch(z, v, '', '', [E, F]);
       const name = prompt(`Name for this preset (z = ${z}, ${P.presetText(p0)}, E/F ${P.efLabel(E, F)}). To change E/F, use "E/F for saved preset" above the list.`, ''); if (name === null) return;
@@ -566,12 +573,12 @@ function renderTrain(m, res, i, trainState, onPresetsChanged) {
       const presets = P.presetsFor(getPresets(m), z);
       const Rt = res.num.toJS(R);
       if (presets.length) {
-        body.append(h('table', { class: 'preset-results' }, h('thead', {}, h('tr', {}, ['', 'A', 'B', 'C', 'D', 'E', 'F', 'Train ratio A/B×C/D×E/F', 'Error', 'Name / note'].map((x) => h('th', { class: 'num' }, x)))),
+        body.append(h('table', { class: 'preset-results' }, h('thead', {}, h('tr', {}, (hasEF ? ['', 'A', 'B', 'C', 'D', 'E', 'F', 'Train ratio A/B×C/D×E/F', 'Error', 'Name / note'] : ['', 'A', 'B', 'C', 'D', 'Train ratio', 'Error', 'Name / note']).map((x) => h('th', { class: 'num' }, x)))),
           h('tbody', {}, presets.map((p) => h('tr', { class: 'preset-row' }, h('td', {}, h('span', { class: 'badge preset' }, 'Preset')), h('td', { class: 'num' }, p.A), h('td', { class: 'num' }, p.B), h('td', { class: 'num' }, p.C ?? ''), h('td', { class: 'num' }, p.D ?? ''),
-            h('td', { class: 'num preset-E' }, P.efOf(p).E), h('td', { class: 'num preset-F' }, P.efOf(p).F),
-            h('td', { class: 'num' }, P.presetRatio(p).toFixed(8)), h('td', { class: 'num' }, presetExact(res, t, p) ? '0 (exact)' : h('span', {}, fmtPct(P.presetError(p, Rt)), ' ', h('span', { class: 'badge warn preset-flag' }, 'Not exact'))), h('td', { class: 'small' }, [p.label, p.note].filter(Boolean).join(' - ')))))),
+            hasEF ? h('td', { class: 'num preset-E' }, P.efOf(p).E) : null, hasEF ? h('td', { class: 'num preset-F' }, P.efOf(p).F) : null,
+            h('td', { class: 'num' }, P.presetRatio(p, hasEF).toFixed(8)), h('td', { class: 'num' }, presetExact(res, t, p, hasEF) ? '0 (exact)' : h('span', {}, fmtPct(P.presetError(p, Rt, hasEF)), ' ', h('span', { class: 'badge warn preset-flag' }, 'Not exact'))), h('td', { class: 'small' }, [p.label, p.note].filter(Boolean).join(' - ')))))),
           h('div', { class: 'small muted', style: 'margin-bottom:8px' }, `Saved preset(s) for z = ${z}. Searched matches from the gear list are below.`));
-        st.selected = { ...presets[0], ratio: P.presetRatio(presets[0]), err: P.presetError(presets[0], Rt) };
+        st.selected = { ...presets[0], ratio: P.presetRatio(presets[0], hasEF), err: P.presetError(presets[0], Rt, hasEF) };
       }
       const inv = allInventories().find((v) => v.id === t.inventory);
       const hint = P.primeHint(z, inv ? inv.gears : [], getPresets(m));
@@ -615,13 +622,13 @@ function renderTrain(m, res, i, trainState, onPresetsChanged) {
           h('span', { class: 'small muted reroll-status' }, none ? '' : `Options ${first + 1}-${first + r.list.length}${r.exhausted ? ' (last ones - no more different options)' : ''}. ${shownCount} different trains shown so far.`)));
     };
     showBatch();
-    if (isIdx && z !== null && canEdit()) body.append(h('div', { class: 'row small save-ef-row' }, h('label', {}, h('b', {}, 'E/F for saved preset: '), saveEf), h('span', { class: 'muted' }, 'used by "Save as preset" and "Save selected match as preset" below (reversing gears; train = A/B × C/D × E/F; the search itself assumes 42/42)')));
+    if (isIdx && z !== null && canEdit() && hasEF) body.append(h('div', { class: 'row small save-ef-row' }, h('label', {}, h('b', {}, 'E/F for saved preset: '), saveEf), h('span', { class: 'muted' }, 'used by "Save as preset" and "Save selected match as preset" below (reversing gears; train = A/B × C/D × E/F; the search itself assumes 42/42)')));
     body.append(listBox,
       h('div', { class: 'small muted' }, t.hideSwaps ? 'Drivers A, C / driven B, D. Swapped placements (A↔C, B↔D) are listed once. Gear quantities in the gear list are respected.' : 'Drivers A, C / driven B, D. Like the original program, every placement is listed (A↔C or B↔D swaps give the same ratio). Gear quantities in the gear list are respected.'),
       (isIdx && z !== null && canEdit()) ? h('div', { class: 'row save-preset-row', style: 'margin-top:6px;align-items:center;gap:8px' }, h('button', { class: 'blue', id: 'save-preset', onclick: () => {
         if (!searchSel) return;
         askSave(searchSel);
-      } }, `Save selected match as preset for z = ${z}`)) : null);
+      } }, `Save selected match as preset for z = ${z}`)) : ''); // v1.8.13: was null -> DOM append() printed a stray "null" under every differential result
   }
   card.append(body);
   return card;
@@ -630,9 +637,10 @@ function renderTrain(m, res, i, trainState, onPresetsChanged) {
 // v1.8.6 named index presets: "Load preset" fills the gear fields and shows the train; admins save / rename / delete.
 // Stored in cg_presets.result.name (no schema change). A preset that is not EXACT for this index ratio is flagged.
 // v1.8.12: reversing gears E/F (56/28, 42/42 or 28/56) in cg_presets.result.E/F; train = A/B x C/D x E/F; missing = 42/42.
-function presetExact(res, t, p) {
+// v1.8.13: hasEF = false (Lees Bradner) -> E/F counted as 1:1, stored E/F ignored
+function presetExact(res, t, p, hasEF = true) {
   const ex = calc.exactRatioOf(res, String(t.ratio).toUpperCase());
-  const { num, den } = P.presetNumDen(p);
+  const { num, den } = P.presetNumDen(p, hasEF);
   return calc.exactCheck(ex)(num, den);
 }
 // E/F selector: value "56/28", text "56/28 (2:1)"
@@ -647,7 +655,8 @@ function presetBar(m, res, t, z, onPresetsChanged) {
   const ex = calc.exactRatioOf(res, ratioName); const isExact = calc.exactCheck(ex);
   const Rt = res.num.toJS(res.env.get(ratioName));
   const list = () => getPresets(m);
-  const plabel = (p) => `${p.label || '(no name)'} - ${P.presetText(p)}${Number(p.z) !== Number(z) ? ` (saved for z = ${p.z})` : ''}`;
+  const hasEF = P.machineHasEF(m); // v1.8.13: no E/F selector / E/F in the train text on Lees Bradner
+  const plabel = (p) => `${p.label || '(no name)'} - ${P.presetText(p, hasEF)}${Number(p.z) !== Number(z) ? ` (saved for z = ${p.z})` : ''}`;
   const wrap = h('div', { class: 'card preset-bar', style: 'margin:6px 0 10px;padding:8px 10px' });
   const fld = (k) => h('input', { type: 'text', class: 'pg-field', id: `pg-${k}-${t.kind}`, 'data-gear': k, style: 'width:56px', inputmode: 'numeric' });
   const F = { A: fld('A'), B: fld('B'), C: fld('C'), D: fld('D') };
@@ -655,35 +664,35 @@ function presetBar(m, res, t, z, onPresetsChanged) {
   const train = h('div', { class: 'small preset-train' });
   const sel = h('select', { class: 'preset-load' });
   let current = -1;
-  const gears = () => { const g = {}; for (const k of 'ABCD') { const v = F[k].value.trim(); g[k] = v === '' ? undefined : Number(v); } [g.E, g.F] = efFromSelect(efSel); return g; };
+  const gears = () => { const g = {}; for (const k of 'ABCD') { const v = F[k].value.trim(); g[k] = v === '' ? undefined : Number(v); } if (hasEF) [g.E, g.F] = efFromSelect(efSel); return g; };
   const show = () => {
     const g = gears();
-    const c = P.cleanPreset({ z: z ?? 1, ...g });
+    const c = P.cleanPreset({ z: z ?? 1, ...g }, hasEF);
     if (!F.A.value.trim() && !F.B.value.trim()) { train.replaceChildren(); return null; }
     if (c.errors.length) { train.replaceChildren(msg('err', c.errors.filter((e) => !/^z /.test(e)).join('; '))); return null; }
-    const p = c.preset; const { num, den } = P.presetNumDen(p);
+    const p = c.preset; const { num, den } = P.presetNumDen(p, hasEF);
     const r = num / den; const exact = isExact(num, den);
-    train.replaceChildren(h('span', {}, 'Train ', h('b', { class: 'preset-train-text' }, P.presetText(p)), ` = ${r.toFixed(8)}, error ${exact ? '0 (exact)' : fmtPct(r / Rt - 1)} `),
+    train.replaceChildren(h('span', {}, 'Train ', h('b', { class: 'preset-train-text' }, P.presetText(p, hasEF)), ` = ${r.toFixed(8)}, error ${exact ? '0 (exact)' : fmtPct(r / Rt - 1)} `),
       exact ? h('span', { class: 'badge preset' }, 'Exact') : h('span', { class: 'badge warn preset-flag', title: 'Index trains must have zero error' }, 'Not exact'));
     return p;
   };
   for (const k of 'ABCD') F[k].addEventListener('input', () => { current = -1; sel.value = ''; show(); });
   efSel.addEventListener('change', () => { current = -1; sel.value = ''; show(); });
   // a search match has no E/F: keep the bar's current E/F; a preset brings its own (missing = 42/42)
-  const fill = (p, keepEf) => { F.A.value = p.A; F.B.value = p.B; F.C.value = p.C ?? ''; F.D.value = p.D ?? ''; if (!keepEf) { const e = P.efOf(p); efSel.value = `${e.E}/${e.F}`; } show(); };
+  const fill = (p, keepEf) => { F.A.value = p.A; F.B.value = p.B; F.C.value = p.C ?? ''; F.D.value = p.D ?? ''; if (!keepEf && hasEF) { const e = P.efOf(p); efSel.value = `${e.E}/${e.F}`; } show(); };
   const redraw = () => {
     const l = list();
     const order = l.map((p, k) => ({ p, k })).sort((a, b) => (Number(b.p.z) === Number(z)) - (Number(a.p.z) === Number(z)) || a.p.z - b.p.z);
     sel.replaceChildren(h('option', { value: '' }, l.length ? '- choose a saved preset -' : '- no presets saved yet -'),
-      ...order.map(({ p, k }) => { const { num: n, den: d } = P.presetNumDen(p); return h('option', { value: String(k) }, plabel(p) + (isExact(n, d) ? '' : '  ⚠ not exact')); }));
+      ...order.map(({ p, k }) => { const { num: n, den: d } = P.presetNumDen(p, hasEF); return h('option', { value: String(k) }, plabel(p) + (isExact(n, d) ? '' : '  ⚠ not exact')); }));
     sel.value = current >= 0 ? String(current) : '';
     btns.replaceChildren(...(canEdit() ? [
       h('button', { class: 'blue small preset-save', onclick: () => {
         const p = show(); if (!p || z === null) return;
-        const name = prompt(`Name for this preset (z = ${z}, ${P.presetText(p)}):`, (current >= 0 && list()[current].label) || '');
+        const name = prompt(`Name for this preset (z = ${z}, ${P.presetText(p, hasEF)}):`, (current >= 0 && list()[current].label) || '');
         if (name === null) return;
         const np = { ...p, z: Number(z), note: (current >= 0 && list()[current].note) || '' }; if (name.trim()) np.label = name.trim(); else delete np.label;
-        const nl = P.upsertPreset(list(), np); setPresets(m, nl); current = nl.findIndex((x) => Number(x.z) === np.z && P.presetText(x) === P.presetText(np)); if (onPresetsChanged) onPresetsChanged(); redraw();
+        const nl = P.upsertPreset(list(), np, hasEF); setPresets(m, nl); current = nl.findIndex((x) => Number(x.z) === np.z && P.presetText(x, hasEF) === P.presetText(np, hasEF)); if (onPresetsChanged) onPresetsChanged(); redraw();
       } }, 'Save as preset'),
       h('button', { class: 'small preset-rename', disabled: current < 0 ? true : undefined, onclick: () => {
         const l = list(); const p = l[current]; if (!p) return;
@@ -691,14 +700,14 @@ function presetBar(m, res, t, z, onPresetsChanged) {
         const nl = l.map((x, k) => (k === current ? (name.trim() ? { ...x, label: name.trim() } : (({ label, ...y }) => y)(x)) : x)); setPresets(m, nl); if (onPresetsChanged) onPresetsChanged(); redraw();
       } }, 'Rename'),
       h('button', { class: 'small preset-delete', disabled: current < 0 ? true : undefined, onclick: () => {
-        const l = list(); const p = l[current]; if (!p || !confirm(`Delete preset "${p.label || P.presetText(p)}" (z = ${p.z}) for everyone?`)) return;
+        const l = list(); const p = l[current]; if (!p || !confirm(`Delete preset "${p.label || P.presetText(p, hasEF)}" (z = ${p.z}) for everyone?`)) return;
         setPresets(m, l.filter((_, k) => k !== current)); current = -1; if (onPresetsChanged) onPresetsChanged(); redraw();
       } }, 'Delete')] : [h('span', { class: 'small muted' }, 'Only an admin can save, rename or delete presets.')]));
   };
   sel.addEventListener('change', () => { current = sel.value === '' ? -1 : Number(sel.value); if (current >= 0) fill(list()[current]); redraw(); });
   const btns = h('span', { class: 'row', style: 'display:inline-flex;gap:6px' });
   wrap.append(h('div', { class: 'row small', style: 'gap:8px;align-items:center;flex-wrap:wrap' }, h('b', {}, 'Load preset: '), sel),
-    h('div', { class: 'row small', style: 'gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap' }, 'A ', F.A, ' / B ', F.B, ' × C ', F.C, ' / D ', F.D, ' × E/F ', efSel, btns), train);
+    h('div', { class: 'row small', style: 'gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap' }, 'A ', F.A, ' / B ', F.B, ' × C ', F.C, ' / D ', F.D, ...(hasEF ? [' × E/F ', efSel] : []), btns), train);
   redraw();
   wrap.fillFrom = (v) => { current = -1; fill(v, !(v.E && v.F)); redraw(); };
   return wrap;
@@ -1269,6 +1278,7 @@ async function openManual(m, name) {
 
 // ------------------------------------------------------------------ index gear presets editor
 function presetEditor(m, onChange) {
+  const hasEF = P.machineHasEF(m); // v1.8.13: no E/F column / CSV E,F on Lees Bradner
   const card = h('div', { class: 'card out-card', id: 'preset-editor' });
   let rows;
   const info = h('div', {});
@@ -1277,7 +1287,7 @@ function presetEditor(m, onChange) {
   file.addEventListener('change', async () => { const f = file.files[0]; if (f) showCsv(await f.text(), f.name); file.value = ''; });
   const commit = () => {
     const errs = [], list = [];
-    rows.forEach((r, k) => { const c = P.cleanPreset(r); if (c.errors.length) errs.push(`row ${k + 1}: ${c.errors.join('; ')}`); else list.push(c.preset); });
+    rows.forEach((r, k) => { const c = P.cleanPreset(r, hasEF); if (c.errors.length) errs.push(`row ${k + 1}: ${c.errors.join('; ')}`); else list.push(c.preset); });
     if (errs.length) { info.replaceChildren(msg('err', errs.join(' | '))); return false; }
     setPresets(m, list.sort((a, b) => a.z - b.z)); rows = clone(list);
     if (onChange) onChange();
@@ -1285,13 +1295,13 @@ function presetEditor(m, onChange) {
     return true;
   };
   const showCsv = (text, fname) => {
-    const p = P.parsePresetCsv(text);
+    const p = P.parsePresetCsv(text, hasEF);
     csvPreview.replaceChildren(h('div', { class: 'card', id: 'preset-csv-preview' }, h('h3', {}, `Preset import preview: ${fname}`),
       h('p', { class: 'small' }, `${p.rows.length} good row(s)${p.header ? ', header row found' : ''}.`),
       p.bad.length ? msg('warn', h('b', {}, `${p.bad.length} row(s) will be skipped:`), h('ul', {}, p.bad.map((b) => h('li', {}, `line ${b.line}: ${b.reason}`)))) : null,
       h('div', { class: 'row' },
         h('button', { class: 'primary', disabled: !p.rows.length || undefined, onclick: () => { rows = p.rows.map(({ line, ...x }) => x); csvPreview.replaceChildren(); commit(); draw(); } }, 'Replace presets with these'),
-        h('button', { class: 'blue', disabled: !p.rows.length || undefined, onclick: () => { let l = getPresets(m); p.rows.forEach(({ line, ...x }) => { l = P.upsertPreset(l, x); }); rows = clone(l); csvPreview.replaceChildren(); commit(); draw(); } }, 'Add to presets'),
+        h('button', { class: 'blue', disabled: !p.rows.length || undefined, onclick: () => { let l = getPresets(m); p.rows.forEach(({ line, ...x }) => { l = P.upsertPreset(l, x, hasEF); }); rows = clone(l); csvPreview.replaceChildren(); commit(); draw(); } }, 'Add to presets'),
         h('button', { onclick: () => csvPreview.replaceChildren() }, 'Cancel'))));
   };
   const cell = (r, key, w) => { const el = h('input', { type: 'text', value: r[key] === undefined ? '' : String(r[key]), class: `preset-${key}`, style: `width:${w}px`, inputmode: key === 'note' ? undefined : 'numeric' }); el.addEventListener('input', () => { r[key] = el.value; }); return el; };
@@ -1300,24 +1310,24 @@ function presetEditor(m, onChange) {
   const draw = () => {
     if (!canEdit()) {
       card.replaceChildren(h('h3', {}, 'Index gear presets'),
-        rows.length ? h('table', { id: 'preset-table' }, h('thead', {}, h('tr', {}, ['z', 'A', 'B', 'C', 'D', 'E', 'F', 'Name', 'Note'].map((x) => h('th', {}, x)))),
-          h('tbody', {}, rows.map((r) => h('tr', {}, ['z', 'A', 'B', 'C', 'D'].map((k) => h('td', { class: 'num' }, r[k] ?? '')), h('td', { class: 'num' }, P.efOf(r).E), h('td', { class: 'num' }, P.efOf(r).F), h('td', { class: 'small preset-name' }, r.label || ''), h('td', { class: 'small' }, r.note || ''))))) : h('p', { class: 'small muted' }, 'No presets saved for this machine.'),
-        h('div', { class: 'row', style: 'margin:6px 0' }, h('button', { onclick: () => downloadText(`${m.name.replace(/[^\w -]+/g, '')} index presets.csv`, P.presetsToCsv(getPresets(m)), 'text/csv') }, 'Export CSV'),
+        rows.length ? h('table', { id: 'preset-table' }, h('thead', {}, h('tr', {}, (hasEF ? ['z', 'A', 'B', 'C', 'D', 'E', 'F', 'Name', 'Note'] : ['z', 'A', 'B', 'C', 'D', 'Name', 'Note']).map((x) => h('th', {}, x)))),
+          h('tbody', {}, rows.map((r) => h('tr', {}, ['z', 'A', 'B', 'C', 'D'].map((k) => h('td', { class: 'num' }, r[k] ?? '')), hasEF ? h('td', { class: 'num' }, P.efOf(r).E) : null, hasEF ? h('td', { class: 'num' }, P.efOf(r).F) : null, h('td', { class: 'small preset-name' }, r.label || ''), h('td', { class: 'small' }, r.note || ''))))) : h('p', { class: 'small muted' }, 'No presets saved for this machine.'),
+        h('div', { class: 'row', style: 'margin:6px 0' }, h('button', { onclick: () => downloadText(`${m.name.replace(/[^\w -]+/g, '')} index presets.csv`, P.presetsToCsv(getPresets(m), hasEF), 'text/csv') }, 'Export CSV'),
           h('span', { class: 'small muted' }, 'Only an admin can add or change presets.')));
       return;
     }
     const keepInfo = [...info.childNodes];
     card.replaceChildren(h('h3', {}, 'Index gear presets'),
-      h('p', { class: 'small muted' }, 'Saved index gear sets for a tooth count z. When the part\'s z matches, the set is shown first, marked Preset. Gears do not have to be in the gear list - for a prime z like 101 you need a 101-tooth gear. Leave C and D empty for a 2-gear A/B set. E/F is the reversing gear pair (56/28, 42/42 or 28/56); train = A/B × C/D × E/F.'),
-      h('table', { class: 'tbl-edit', id: 'preset-table' }, h('thead', {}, h('tr', {}, ['z', 'A', 'B', 'C', 'D', 'E/F', 'Note', ''].map((x) => h('th', {}, x)))),
-        h('tbody', {}, rows.map((r, k) => h('tr', {}, h('td', {}, cell(r, 'z', 60)), h('td', {}, cell(r, 'A', 55)), h('td', {}, cell(r, 'B', 55)), h('td', {}, cell(r, 'C', 55)), h('td', {}, cell(r, 'D', 55)), h('td', {}, efCell(r)), h('td', {}, cell(r, 'note', 220)),
+      h('p', { class: 'small muted' }, 'Saved index gear sets for a tooth count z. When the part\'s z matches, the set is shown first, marked Preset. Gears do not have to be in the gear list - for a prime z like 101 you need a 101-tooth gear. Leave C and D empty for a 2-gear A/B set.' + (hasEF ? ' E/F is the reversing gear pair (56/28, 42/42 or 28/56); train = A/B × C/D × E/F.' : '')),
+      h('table', { class: 'tbl-edit', id: 'preset-table' }, h('thead', {}, h('tr', {}, (hasEF ? ['z', 'A', 'B', 'C', 'D', 'E/F', 'Note', ''] : ['z', 'A', 'B', 'C', 'D', 'Note', '']).map((x) => h('th', {}, x)))),
+        h('tbody', {}, rows.map((r, k) => h('tr', {}, h('td', {}, cell(r, 'z', 60)), h('td', {}, cell(r, 'A', 55)), h('td', {}, cell(r, 'B', 55)), h('td', {}, cell(r, 'C', 55)), h('td', {}, cell(r, 'D', 55)), hasEF ? h('td', {}, efCell(r)) : null, h('td', {}, cell(r, 'note', 220)),
           h('td', {}, h('button', { class: 'x', title: 'Delete preset', onclick: () => { rows.splice(k, 1); commit(); draw(); } }, '×')))))),
       h('div', { class: 'row', style: 'margin:6px 0' },
         h('button', { id: 'preset-add', onclick: () => { rows.push({ z: '', A: '', B: '', C: '', D: '', note: '' }); draw(); const l = card.querySelector('#preset-table tbody tr:last-child input'); if (l) l.focus(); } }, '+ Add preset'),
         h('button', { class: 'primary', id: 'preset-save', onclick: () => { if (commit()) draw(); } }, 'Save presets'),
         file, h('button', { onclick: () => file.click() }, 'Import CSV'),
-        h('button', { onclick: () => downloadText(`${m.name.replace(/[^\w -]+/g, '')} index presets.csv`, P.presetsToCsv(getPresets(m)), 'text/csv') }, 'Export CSV'),
-        h('span', { class: 'small muted' }, 'CSV columns: z, A, B, C, D, E, F, note (old files without E, F import as 42/42)')),
+        h('button', { onclick: () => downloadText(`${m.name.replace(/[^\w -]+/g, '')} index presets.csv`, P.presetsToCsv(getPresets(m), hasEF), 'text/csv') }, 'Export CSV'),
+        h('span', { class: 'small muted' }, hasEF ? 'CSV columns: z, A, B, C, D, E, F, note (old files without E, F import as 42/42)' : 'CSV columns: z, A, B, C, D, note, name')),
       csvPreview, info);
     info.replaceChildren(...keepInfo);
   };

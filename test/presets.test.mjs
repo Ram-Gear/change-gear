@@ -129,5 +129,37 @@ await t('bundle: manuals base64 round trip', async () => {
   const bad = calc.parseBundle(JSON.stringify({ ...b, manuals: { x: { data: '!!' } } }));
   assert.equal(Object.keys(bad.manuals).length, 0); assert.ok(bad.errors.length);
 });
+// ---------------------------------------------------------------- v1.8.13 E/F only where the machine has it (not Lees Bradner)
+await t('machineHasEF: off only for Lees Bradner (id, name, noEF flag); on for FD-500, FO-10, others', () => {
+  assert.equal(P.machineHasEF({ id: 'custom-tiblpjl', name: 'Lees Bradner' }), false);
+  assert.equal(P.machineHasEF({ id: 'custom-p3bks4m', name: 'Lees Bradner (fixed draft)' }), false);
+  assert.equal(P.machineHasEF({ id: 'custom-tiblpjl', name: 'renamed' }), false, 'locked original by id');
+  assert.equal(P.machineHasEF({ id: 'custom-x', name: 'Other', noEF: true }), false, 'explicit noEF flag');
+  assert.equal(P.machineHasEF({ id: 'custom-uzp78zx', name: 'Overton FD-500' }), true);
+  assert.equal(P.machineHasEF({ id: 'custom-z7dft19', name: 'TOS FO-10' }), true);
+  assert.equal(P.machineHasEF({ id: 'custom-q', name: 'New machine' }), true);
+  assert.equal(P.machineHasEF({ id: 'custom-q', name: 'Fleeson' }), true, 'whole word only');
+  assert.equal(P.machineHasEF({ id: 'custom-tiblpjl', name: 'Lees Bradner', hasEF: true }), true, 'explicit hasEF wins');
+});
+await t('hasEF=false: stored E/F ignored (1:1) for ratio, exact num/den, text; no E/F on new presets', () => {
+  const p = { z: 45, A: 48, B: 70, C: 70, D: 45, E: 28, F: 56 };
+  assert.equal(P.presetText(p, false), '48/70 × 70/45');
+  assert.equal(P.presetText(p), '48/70 × 70/45 × 28/56', 'default unchanged (v1.8.12)');
+  const nd = P.presetNumDen(p, false); assert.equal(nd.num * 45, nd.den * 48, 'whole-number ratio = 48/45 (E/F as 42/42)');
+  assert.ok(Math.abs(P.presetRatio(p, false) - 48 / 45) < 1e-12);
+  assert.ok(Math.abs(P.presetError(p, 48 / 45, false)) < 1e-12);
+  const n = P.presetFromMatch(18, { A: 45, B: 54, C: 40, D: 80 }, '', 'x', null, false);
+  assert.equal('E' in n || 'F' in n, false);
+  assert.deepEqual(P.cleanPreset({ z: 1, A: 2, B: 3, E: 21, F: 63 }, false), { preset: { z: 1, A: 2, B: 3, note: '' }, errors: [] }, 'bad pair dropped, no error');
+  assert.equal(P.cleanPreset({ z: 1, A: 2, B: 3, E: 28, F: 56 }, false).preset.E, 28, 'valid stored pair carried along untouched');
+});
+await t('hasEF=false CSV: export old layout without E,F; import ignores E,F columns', () => {
+  const csv = P.presetsToCsv([{ z: 18, A: 45, B: 54, C: 40, D: 80, note: 'n', label: 'L', E: 28, F: 56 }], false);
+  assert.equal(csv, 'z,A,B,C,D,note,name\r\n18,45,54,40,80,n,L\r\n');
+  const back = P.parsePresetCsv(csv, false); assert.deepEqual(back.rows.map(({ line, ...x }) => x), [{ z: 18, A: 45, B: 54, C: 40, D: 80, note: 'n', label: 'L' }]);
+  const ef = P.parsePresetCsv('z,A,B,C,D,E,F,note,name\r\n50,48,70,70,50,28,56,a,b\r\n51,48,70,70,51,21,63,c,d\r\n', false);
+  assert.equal(ef.rows.length, 2); assert.equal(ef.bad.length, 0); assert.equal('E' in ef.rows[0], false); assert.equal(ef.rows[1].note, 'c');
+  assert.ok(P.presetsToCsv([{ z: 1, A: 2, B: 3 }]).startsWith('z,A,B,C,D,E,F,note,name'), 'default export unchanged');
+});
 console.log(fails ? `${fails} FAILED` : 'presets: ALL PASSED');
 process.exitCode = fails ? 1 : 0;
